@@ -10,7 +10,9 @@ import { pool } from "./pool.ts";
 import { retry } from "./retry.ts";
 import { configure, extractZip, HttpReader, terminateWorkers } from "./zip.ts";
 
-configure({ useCompressionStream: true });
+configure({
+  useCompressionStream: true,
+});
 await new class extends Command {
   override error(e: Error): never {
     if (!(e instanceof ValidationError)) {
@@ -22,22 +24,30 @@ await new class extends Command {
   }
 }()
   .name("levelsync")
-  .arguments("<output>")
   .usage("[options] <output>")
   .description(`
     Automatically download Rhythm Doctor levels.
   `)
+  .type("positive-integer", ({ label, name, value }) => {
+    const result = Number(value);
+    if (!(Number.isInteger(result) && result > 0)) {
+      throw new ValidationError(
+        `${label} "${name}" must be a positive integer, but got "${value}".`,
+      );
+    }
+    return result;
+  })
   .option(
-    "-y, --yeeted <path>",
+    "-y, --yeeted <path:file>",
     "Path of where to store removed levels.",
   )
   .option(
-    "-d, --database <path>",
+    "-d, --database <path:file>",
     "Path of where to cache the level database.",
     { default: "./orchard.db" },
   )
   .option(
-    "-c, --concurrency <number:integer>",
+    "-c, --concurrency <number:positive-integer>",
     "Number of levels to download concurrently.",
     { default: 1 },
   )
@@ -45,6 +55,7 @@ await new class extends Command {
     "--codex",
     "Download levels from codex.rhythm.cafe.",
   )
+  .arguments("<output:file>")
   .action(async function ({ yeeted, database, concurrency, codex }, output) {
     Deno.mkdirSync(output, { recursive: true });
     const lock = resolve(output, ".levelsync.lock");
