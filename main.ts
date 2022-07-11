@@ -8,7 +8,7 @@ import { signal } from "./interrupt_signal.ts";
 import { cacheLevels, loadLevels } from "./orchard.ts";
 import { pool } from "./pool.ts";
 import { retry } from "./retry.ts";
-import { configure, extractZip, HttpReader } from "./zip.ts";
+import { configure, extractZip, HttpReader, terminateWorkers } from "./zip.ts";
 
 configure({ useCompressionStream: true });
 await new class extends Command {
@@ -141,6 +141,8 @@ await new class extends Command {
       );
     } catch {
       // ignored
+    } finally {
+      terminateWorkers();
     }
     if (error) {
       Deno.exit(1);

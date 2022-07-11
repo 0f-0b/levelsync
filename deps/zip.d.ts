@@ -59,7 +59,7 @@ export interface ReaderStreamOptions {
 
 export abstract class Reader extends Stream {
   abstract readUint8Array(index: number, length: number): Awaitable<Uint8Array>;
-  getStream(options?: ReaderStreamOptions): ReadableStream<Uint8Array>;
+  getReadable(options?: ReaderStreamOptions): ReadableStream<Uint8Array>;
 }
 
 export class TextReader extends Reader {
@@ -118,7 +118,7 @@ export class ReadableStreamReader extends Reader {
 
 declare abstract class WriterStream extends Stream {
   abstract writeUint8Array(array: Uint8Array): Awaitable<undefined>;
-  getStream(): WritableStream<Uint8Array>;
+  readonly writable: WritableStream<Uint8Array>;
 }
 
 export abstract class Writer<T> extends WriterStream {
@@ -262,7 +262,9 @@ export interface ReadOptions {
 }
 
 export interface EntryDataProgressEventHandler {
+  onstart?: (total: number) => unknown;
   onprogress?: (progress: number, total: number) => unknown;
+  onend?: () => unknown;
 }
 
 export interface ReadableEntry extends Entry {
