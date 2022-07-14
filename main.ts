@@ -72,9 +72,7 @@ await new class extends Command {
     addEventListener("unload", () => Deno.removeSync(lock));
     const levels = await (async () => {
       try {
-        await retry((signal) => cacheLevels(database, { signal }), {
-          signal,
-        });
+        await retry((signal) => cacheLevels(database, { signal }), { signal });
         return loadLevels(database);
       } catch (e: unknown) {
         console.error(

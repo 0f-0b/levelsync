@@ -3,7 +3,6 @@ import {
   type GetEntriesOptions,
   type Reader,
   type ReadOptions,
-  WritableStreamWriter,
   ZipReader,
 } from "./deps/zip.ts";
 
@@ -23,7 +22,12 @@ export async function extractZip(
       }
       const path = resolve(target, normalized);
       const { writable } = await Deno.create(path);
-      await entry.getData(new WritableStreamWriter(writable), options);
+      try {
+        await entry.getData({ writable }, options);
+      } catch (e: unknown) {
+        await writable.close();
+        throw e;
+      }
       await Deno.utime(path, entry.lastModDate, entry.lastModDate);
     }
   } finally {

@@ -1,4 +1,4 @@
-export * from "https://esm.sh/superstruct@0.15.4?keep-names&pin=v86";
+export * from "https://esm.sh/superstruct@0.15.4?keep-names&pin=v87";
 
 import {
   any as _any,
@@ -12,7 +12,7 @@ import {
   regexp as _regexp,
   string as _string,
   unknown as _unknown,
-} from "https://esm.sh/superstruct@0.15.4?keep-names&pin=v86";
+} from "https://esm.sh/superstruct@0.15.4?keep-names&pin=v87";
 
 export const any = _any();
 export const bigint = _bigint();

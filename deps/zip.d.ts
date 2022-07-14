@@ -45,21 +45,57 @@ export function initShimAsyncCodec<
 export function terminateWorkers(): undefined;
 export function getMimeType(filename: string): string;
 
+interface ReadableByteStream extends ReadableStream<Uint8Array> {
+  size?: () => number;
+  chunkSize?: number;
+}
+
+interface SeekableReadableByteStream extends ReadableByteStream {
+  offset?: number;
+}
+
+interface ReadableReader {
+  readonly readable: ReadableByteStream;
+  size?: number;
+  initialized?: boolean;
+  init?(): unknown;
+}
+
+interface SeekableReadableReader extends ReadableReader {
+  readonly readable: SeekableReadableByteStream;
+  size: number;
+  init(): unknown;
+  readUint8Array(index: number, length: number): Awaitable<Uint8Array>;
+}
+
+type WritableByteStream = WritableStream<Uint8Array>;
+
+interface WritableWriter {
+  readonly writable: WritableByteStream;
+  preventClose?: boolean;
+  size?: number;
+  initialized?: boolean;
+  init?(): unknown;
+  getData?(): unknown;
+}
+
+interface SizedWritableWriter extends WritableWriter {
+  size: number;
+}
+
+type GetData<T extends WritableWriter> = T["getData"] extends () => infer R
+  ? Awaited<R>
+  : WritableByteStream;
+
 declare class Stream {
   size: number;
   initialized?: boolean;
   init(): Awaitable<undefined>;
 }
 
-export interface ReaderStreamOptions {
-  offset?: number;
-  size: () => number;
-  chunkSize?: number;
-}
-
-export abstract class Reader extends Stream {
+export abstract class Reader extends Stream implements SeekableReadableReader {
+  readonly readable: SeekableReadableByteStream;
   abstract readUint8Array(index: number, length: number): Awaitable<Uint8Array>;
-  getReadable(options?: ReaderStreamOptions): ReadableStream<Uint8Array>;
 }
 
 export class TextReader extends Reader {
@@ -110,54 +146,52 @@ export class HttpRangeReader extends Reader {
   readUint8Array(index: number, length: number): Promise<Uint8Array>;
 }
 
-export class ReadableStreamReader extends Reader {
-  constructor(readable: ReadableStream<Uint8Array>);
+export class ReadableStreamReader extends Stream implements ReadableReader {
+  constructor(readable: ReadableByteStream);
+  readonly readable: ReadableByteStream;
   init(): undefined;
-  readUint8Array(index: number, length: number): Promise<Uint8Array>;
 }
 
-declare abstract class WriterStream extends Stream {
-  abstract writeUint8Array(array: Uint8Array): Awaitable<undefined>;
-  readonly writable: WritableStream<Uint8Array>;
-}
-
-export abstract class Writer<T> extends WriterStream {
+export abstract class Writer extends Stream implements WritableWriter {
+  readonly writable: WritableByteStream;
   writeUint8Array(array: Uint8Array): Awaitable<undefined>;
-  abstract getData(): Awaitable<T>;
 }
 
-export class TextWriter extends Writer<string> {
+export class TextWriter extends Writer {
   constructor(encoding?: string);
   init(): undefined;
   writeUint8Array(array: Uint8Array): undefined;
   getData(): Promise<string>;
 }
 
-export class BlobWriter extends Writer<Blob> {
+export class BlobWriter extends Writer {
   constructor(contentType?: string);
   init(): undefined;
   writeUint8Array(array: Uint8Array): undefined;
   getData(): Blob;
 }
 
-export class Data64URIWriter extends Writer<string> {
+export class Data64URIWriter extends Writer {
   constructor(contentType?: string);
   init(): undefined;
   writeUint8Array(array: Uint8Array): undefined;
   getData(): string;
 }
 
-export class Uint8ArrayWriter extends Writer<Uint8Array> {
+export class Uint8ArrayWriter extends Writer {
   init(): undefined;
   writeUint8Array(array: Uint8Array): undefined;
   getData(): Uint8Array;
 }
 
-export class WritableStreamWriter extends Writer<WritableStream<Uint8Array>> {
-  constructor(writable: WritableStream<Uint8Array>);
+export interface WritableStreamOptions {
+  preventClose?: boolean;
+}
+
+export class WritableStreamWriter extends Writer {
+  constructor(writable: WritableByteStream, options?: WritableStreamOptions);
   init(): undefined;
   writeUint8Array(array: Uint8Array): Promise<undefined>;
-  getData(): Promise<WritableStream<Uint8Array>>;
 }
 
 export interface BitFlag {
@@ -264,14 +298,14 @@ export interface ReadOptions {
 export interface EntryDataProgressEventHandler {
   onstart?: (total: number) => unknown;
   onprogress?: (progress: number, total: number) => unknown;
-  onend?: () => unknown;
+  onend?: (total: number) => unknown;
 }
 
 export interface ReadableEntry extends Entry {
-  getData<T>(
-    writer: Writer<T>,
+  getData<T extends WritableWriter>(
+    writer: T,
     options?: EntryDataProgressEventHandler & ReadOptions,
-  ): Promise<T>;
+  ): Promise<GetData<T>>;
 }
 
 export interface GetEntriesOptions {
@@ -285,7 +319,7 @@ export interface EntryProgressEventHandler {
 
 export class ZipReader {
   constructor(
-    reader: Reader,
+    reader: SeekableReadableReader,
     options?: ReadOptions & GetEntriesOptions,
   );
   getEntriesGenerator(
@@ -331,21 +365,18 @@ export interface CloseOptions {
   zip64?: boolean;
 }
 
-export class ZipWriter<T> {
+export class ZipWriter<T extends SizedWritableWriter> {
   readonly hasCorruptedEntries?: boolean;
-  constructor(
-    writer: Writer<T>,
-    options?: WriteOptions,
-  );
+  constructor(writer: T, options?: WriteOptions);
   add(
     name: string,
-    reader: Reader | null,
+    reader: ReadableReader | null,
     options?: EntryDataProgressEventHandler & AddEntryOptions & WriteOptions,
   ): Promise<Entry>;
   close(
     comment?: Uint8Array,
     options?: EntryProgressEventHandler & CloseOptions,
-  ): Promise<T>;
+  ): Promise<GetData<T>>;
 }
 
 export const ERR_HTTP_RANGE: string;

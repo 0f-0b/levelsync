@@ -11,14 +11,17 @@ export async function retry<T>(
   { retries = 10, interval = 1000, signal }: RetryOptions = {},
 ): Promise<Awaited<T>> {
   const errors: unknown[] = [];
-  do {
+  for (;;) {
     signal?.throwIfAborted();
     try {
       return await fn(signal);
     } catch (e: unknown) {
       errors.push(e);
     }
+    if (retries-- <= 0) {
+      break;
+    }
     await delay(interval, { signal });
-  } while (retries-- > 0);
+  }
   throw new AggregateError(errors);
 }
