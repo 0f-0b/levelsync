@@ -8,11 +8,8 @@ import { signal } from "./interrupt_signal.ts";
 import { cacheLevels, loadLevels } from "./orchard.ts";
 import { pool } from "./pool.ts";
 import { retry } from "./retry.ts";
-import { configure, extractZip, HttpReader, terminateWorkers } from "./zip.ts";
+import { extractZip, HttpReader, terminateWorkers } from "./zip.ts";
 
-configure({
-  useCompressionStream: true,
-});
 await new class extends Command {
   override error(e: Error): never {
     if (!(e instanceof ValidationError)) {
@@ -52,11 +49,21 @@ await new class extends Command {
     { default: 1 },
   )
   .option(
+    "-n, --dry-run",
+    "Do not actually add or remove levels.",
+  )
+  .option(
     "--codex",
     "Download levels from codex.rhythm.cafe.",
   )
   .arguments("<output:file>")
-  .action(async function ({ yeeted, database, concurrency, codex }, output) {
+  .action(async function ({
+    yeeted,
+    database,
+    concurrency,
+    dryRun,
+    codex,
+  }, output) {
     Deno.mkdirSync(output, { recursive: true });
     const lock = resolve(output, ".levelsync.lock");
     try {
@@ -73,7 +80,7 @@ await new class extends Command {
     const levels = await (async () => {
       try {
         await retry((signal) => cacheLevels(database, { signal }), { signal });
-        return loadLevels(database);
+        return loadLevels(database, codex);
       } catch (e: unknown) {
         console.error(
           `${bold(red("error"))}: Cannot update level database:`,
@@ -93,17 +100,19 @@ await new class extends Command {
         }
         if (!added.delete(id)) {
           console.log(`${green("Remove")} ${id}`);
-          try {
-            if (yeeted !== undefined) {
-              await Deno.mkdir(yeeted, { recursive: true });
-              await Deno.remove(resolve(output, id, ".levelsync"));
-              await Deno.rename(resolve(output, id), resolve(yeeted, id));
-            } else {
-              await Deno.remove(resolve(output, id), { recursive: true });
+          if (!dryRun) {
+            try {
+              if (yeeted !== undefined) {
+                await Deno.mkdir(yeeted, { recursive: true });
+                await Deno.remove(resolve(output, id, ".levelsync"));
+                await Deno.rename(resolve(output, id), resolve(yeeted, id));
+              } else {
+                await Deno.remove(resolve(output, id), { recursive: true });
+              }
+            } catch (e: unknown) {
+              console.error(`${bold(red("error"))}: Cannot remove ${id}:`, e);
+              error = true;
             }
-          } catch (e: unknown) {
-            console.error(`${bold(red("error"))}: Cannot remove ${id}:`, e);
-            error = true;
           }
         }
       }
@@ -115,33 +124,35 @@ await new class extends Command {
       await pool(
         concurrency,
         (function* () {
-          for (const [id, level] of added) {
-            const url = codex ? level.url : level.canonicalURL;
+          for (const { id, url } of added.values()) {
             yield async (signal?: AbortSignal) => {
               signal?.throwIfAborted();
               console.log(`${green("Download")} ${id} (${url})`);
-              try {
-                await retry(async (signal) => {
-                  const tempDir = await Deno.makeTempDir();
-                  try {
-                    (await Deno.create(resolve(tempDir, ".levelsync"))).close();
-                    const reader = new HttpReader(url, {
-                      preventHeadRequest: true,
-                      signal,
-                    });
-                    await extractZip(reader, tempDir, { signal });
-                    await Deno.rename(tempDir, resolve(output, id));
-                  } catch (e: unknown) {
-                    await Deno.remove(tempDir, { recursive: true });
-                    throw e;
-                  }
-                }, { signal });
-              } catch (e: unknown) {
-                console.error(
-                  `${bold(red("error"))}: Cannot download ${id}:`,
-                  e,
-                );
-                error = true;
+              if (!dryRun) {
+                try {
+                  await retry(async (signal) => {
+                    const tempDir = await Deno.makeTempDir();
+                    try {
+                      (await Deno.create(resolve(tempDir, ".levelsync")))
+                        .close();
+                      const reader = new HttpReader(url, {
+                        preventHeadRequest: true,
+                        signal,
+                      });
+                      await extractZip(reader, tempDir, { signal });
+                      await Deno.rename(tempDir, resolve(output, id));
+                    } catch (e: unknown) {
+                      await Deno.remove(tempDir, { recursive: true });
+                      throw e;
+                    }
+                  }, { signal });
+                } catch (e: unknown) {
+                  console.error(
+                    `${bold(red("error"))}: Cannot download ${id}:`,
+                    e,
+                  );
+                  error = true;
+                }
               }
             };
           }

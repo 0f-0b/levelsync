@@ -37,6 +37,10 @@ deno install -fr --unstable --allow-read --allow-write --allow-net https://cdn.j
 
   Download a maximum of `NUMBER` levels simultaneously. Defaults to `1`.
 
+- **`-n`**, **`--dry-run`**
+
+  Show levels to be added or removed but do not actually update them.
+
 - **`--codex`**
 
   Always download levels from `codex.rhythm.cafe`.

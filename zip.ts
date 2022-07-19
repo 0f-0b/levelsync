@@ -1,15 +1,15 @@
 import { normalize, resolve } from "./deps/std/path.ts";
 import {
   type GetEntriesOptions,
-  type Reader,
   type ReadOptions,
+  type SeekableReadableReader,
   ZipReader,
 } from "./deps/zip.ts";
 
 export * from "./deps/zip.ts";
 
 export async function extractZip(
-  reader: Reader,
+  reader: SeekableReadableReader,
   target: string,
   options?: ReadOptions & GetEntriesOptions,
 ): Promise<undefined> {

@@ -47,7 +47,6 @@ export function getMimeType(filename: string): string;
 
 interface ReadableByteStream extends ReadableStream<Uint8Array> {
   size?: () => number;
-  chunkSize?: number;
 }
 
 interface SeekableReadableByteStream extends ReadableByteStream {
@@ -57,6 +56,7 @@ interface SeekableReadableByteStream extends ReadableByteStream {
 interface ReadableReader {
   readonly readable: ReadableByteStream;
   size?: number;
+  chunkSize?: number;
   initialized?: boolean;
   init?(): unknown;
 }
@@ -79,10 +79,6 @@ interface WritableWriter {
   getData?(): unknown;
 }
 
-interface SizedWritableWriter extends WritableWriter {
-  size: number;
-}
-
 type GetData<T extends WritableWriter> = T["getData"] extends () => infer R
   ? Awaited<R>
   : WritableByteStream;
@@ -94,6 +90,7 @@ declare class Stream {
 }
 
 export abstract class Reader extends Stream implements SeekableReadableReader {
+  chunkSize?: number;
   readonly readable: SeekableReadableByteStream;
   abstract readUint8Array(index: number, length: number): Awaitable<Uint8Array>;
 }
@@ -298,7 +295,7 @@ export interface ReadOptions {
 export interface EntryDataProgressEventHandler {
   onstart?: (total: number) => unknown;
   onprogress?: (progress: number, total: number) => unknown;
-  onend?: (total: number) => unknown;
+  onend?: (computedSize: number) => unknown;
 }
 
 export interface ReadableEntry extends Entry {
@@ -311,6 +308,8 @@ export interface ReadableEntry extends Entry {
 export interface GetEntriesOptions {
   filenameEncoding?: string;
   commentEncoding?: string;
+  extractPrependedData?: boolean;
+  extractAppendedData?: boolean;
 }
 
 export interface EntryProgressEventHandler {
@@ -318,6 +317,9 @@ export interface EntryProgressEventHandler {
 }
 
 export class ZipReader {
+  readonly comment?: Uint8Array;
+  readonly prependedData?: Uint8Array;
+  readonly appendedData?: Uint8Array;
   constructor(
     reader: SeekableReadableReader,
     options?: ReadOptions & GetEntriesOptions,
@@ -363,9 +365,10 @@ export interface AddEntryOptions {
 
 export interface CloseOptions {
   zip64?: boolean;
+  preventClose?: boolean;
 }
 
-export class ZipWriter<T extends SizedWritableWriter> {
+export class ZipWriter<T extends WritableWriter> {
   readonly hasCorruptedEntries?: boolean;
   constructor(writer: T, options?: WriteOptions);
   add(
