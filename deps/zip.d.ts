@@ -61,13 +61,6 @@ interface ReadableReader {
   init?(): unknown;
 }
 
-interface SeekableReadableReader extends ReadableReader {
-  readonly readable: SeekableReadableByteStream;
-  size: number;
-  init(): unknown;
-  readUint8Array(index: number, length: number): Awaitable<Uint8Array>;
-}
-
 type WritableByteStream = WritableStream<Uint8Array>;
 
 interface WritableWriter {
@@ -89,7 +82,7 @@ declare class Stream {
   init(): Awaitable<undefined>;
 }
 
-export abstract class Reader extends Stream implements SeekableReadableReader {
+export abstract class Reader extends Stream implements ReadableReader {
   chunkSize?: number;
   readonly readable: SeekableReadableByteStream;
   abstract readUint8Array(index: number, length: number): Awaitable<Uint8Array>;
@@ -143,12 +136,6 @@ export class HttpRangeReader extends Reader {
   readUint8Array(index: number, length: number): Promise<Uint8Array>;
 }
 
-export class ReadableStreamReader extends Stream implements ReadableReader {
-  constructor(readable: ReadableByteStream);
-  readonly readable: ReadableByteStream;
-  init(): undefined;
-}
-
 export abstract class Writer extends Stream implements WritableWriter {
   readonly writable: WritableByteStream;
   writeUint8Array(array: Uint8Array): Awaitable<undefined>;
@@ -179,16 +166,6 @@ export class Uint8ArrayWriter extends Writer {
   init(): undefined;
   writeUint8Array(array: Uint8Array): undefined;
   getData(): Uint8Array;
-}
-
-export interface WritableStreamOptions {
-  preventClose?: boolean;
-}
-
-export class WritableStreamWriter extends Writer {
-  constructor(writable: WritableByteStream, options?: WritableStreamOptions);
-  init(): undefined;
-  writeUint8Array(array: Uint8Array): Promise<undefined>;
 }
 
 export interface BitFlag {
@@ -321,7 +298,7 @@ export class ZipReader {
   readonly prependedData?: Uint8Array;
   readonly appendedData?: Uint8Array;
   constructor(
-    reader: SeekableReadableReader,
+    reader: ReadableReader,
     options?: ReadOptions & GetEntriesOptions,
   );
   getEntriesGenerator(
@@ -404,5 +381,3 @@ export const ERR_INVALID_EXTRAFIELD_TYPE: string;
 export const ERR_INVALID_EXTRAFIELD_DATA: string;
 export const ERR_INVALID_ENCRYPTION_STRENGTH: string;
 export const ERR_UNSUPPORTED_FORMAT: string;
-export const ERR_ABORT: string;
-export const ERR_NOT_SEEKABLE_READER: string;

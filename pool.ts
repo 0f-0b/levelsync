@@ -3,15 +3,13 @@ export interface PoolOptions {
 }
 
 export async function pool(
-  concurrency: number,
-  fns:
-    | Iterable<(signal?: AbortSignal) => unknown>
-    | AsyncIterable<(signal?: AbortSignal) => unknown>,
+  limit: number,
+  fns: Iterable<(signal?: AbortSignal) => unknown>,
   { signal }: PoolOptions = {},
 ): Promise<undefined> {
   const executing = new Set<Promise<unknown>>();
   try {
-    for await (const fn of fns) {
+    for (const fn of fns) {
       signal?.throwIfAborted();
       const promise = (async () => {
         await fn(signal);
@@ -19,7 +17,7 @@ export async function pool(
         executing.delete(promise);
       })();
       executing.add(promise);
-      if (executing.size >= concurrency) {
+      if (executing.size >= limit) {
         await Promise.race(executing);
       }
     }

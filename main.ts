@@ -3,23 +3,19 @@
 import { Command, ValidationError } from "./deps/cliffy/command.ts";
 import { bold, green, red, yellow } from "./deps/std/fmt/colors.ts";
 import { resolve } from "./deps/std/path.ts";
+import { HttpReader, terminateWorkers, ZipReader } from "./deps/zip.ts";
+
 import { associateBy } from "./collections/associate_by.ts";
 import { signal } from "./interrupt_signal.ts";
 import { cacheLevels, loadLevels } from "./orchard.ts";
 import { pool } from "./pool.ts";
 import { retry } from "./retry.ts";
-import { extractZip, HttpReader, terminateWorkers } from "./zip.ts";
+import { extractZipInto } from "./zip.ts";
 
-await new class extends Command {
-  override error(e: Error): never {
-    if (!(e instanceof ValidationError)) {
-      throw e;
-    }
-    this.showHelp();
-    console.error(`${bold(red("error"))}: ${e.message}`);
-    Deno.exit(2);
-  }
-}()
+const {
+  options: { yeeted, database, concurrency, dryRun, codex },
+  args: [output],
+} = await new Command()
   .name("levelsync")
   .usage("[options] <output>")
   .description(`
@@ -57,115 +53,104 @@ await new class extends Command {
     "Download levels from codex.rhythm.cafe.",
   )
   .arguments("<output:file>")
-  .action(async function ({
-    yeeted,
-    database,
-    concurrency,
-    dryRun,
-    codex,
-  }, output) {
-    Deno.mkdirSync(output, { recursive: true });
-    const lock = resolve(output, ".levelsync.lock");
+  .parse();
+Deno.mkdirSync(output, { recursive: true });
+const lock = resolve(output, ".levelsync.lock");
+try {
+  Deno.openSync(lock, { write: true, createNew: true }).close();
+} catch {
+  console.warn(
+    `${
+      yellow("Warning")
+    } Another instance of levelsync is already running or was erroneously terminated. Manually remove '${lock}' to continue anyway.`,
+  );
+  Deno.exit(4);
+}
+addEventListener("unload", () => Deno.removeSync(lock));
+const levels = await (async () => {
+  try {
+    await retry((signal) => cacheLevels(database, { signal }), { signal });
+    return loadLevels(database, codex);
+  } catch (e: unknown) {
+    console.error(`${bold(red("error"))}: Cannot update level database:`, e);
+    Deno.exit(3);
+  }
+})();
+let error = false;
+const added = associateBy(levels, ({ id }) => id);
+try {
+  for await (const { name: id } of Deno.readDir(output)) {
     try {
-      Deno.openSync(lock, { write: true, createNew: true }).close();
+      await Deno.stat(resolve(output, id, ".levelsync"));
     } catch {
-      console.warn(
-        `${
-          yellow("Warning")
-        } Another instance of levelsync is already running or was erroneously terminated. Manually remove '${lock}' to continue anyway.`,
-      );
-      Deno.exit(4);
+      continue;
     }
-    addEventListener("unload", () => Deno.removeSync(lock));
-    const levels = await (async () => {
-      try {
-        await retry((signal) => cacheLevels(database, { signal }), { signal });
-        return loadLevels(database, codex);
-      } catch (e: unknown) {
-        console.error(
-          `${bold(red("error"))}: Cannot update level database:`,
-          e,
-        );
-        Deno.exit(3);
-      }
-    })();
-    let error = false;
-    const added = associateBy(levels, ({ id }) => id);
-    try {
-      for await (const { name: id } of Deno.readDir(output)) {
+    if (!added.delete(id)) {
+      console.log(`${green("Remove")} ${id}`);
+      if (!dryRun) {
         try {
-          await Deno.stat(resolve(output, id, ".levelsync"));
-        } catch {
-          continue;
+          if (yeeted !== undefined) {
+            await Deno.mkdir(yeeted, { recursive: true });
+            await Deno.remove(resolve(output, id, ".levelsync"));
+            await Deno.rename(resolve(output, id), resolve(yeeted, id));
+          } else {
+            await Deno.remove(resolve(output, id), { recursive: true });
+          }
+        } catch (e: unknown) {
+          console.error(`${bold(red("error"))}: Cannot remove ${id}:`, e);
+          error = true;
         }
-        if (!added.delete(id)) {
-          console.log(`${green("Remove")} ${id}`);
+      }
+    }
+  }
+} catch (e: unknown) {
+  console.error(`${bold(red("error"))}: Cannot read existing levels:`, e);
+  Deno.exit(3);
+}
+try {
+  await pool(
+    concurrency,
+    (function* () {
+      for (const { id, url } of added.values()) {
+        yield async (signal?: AbortSignal) => {
+          signal?.throwIfAborted();
+          console.log(`${green("Download")} ${id} (${url})`);
           if (!dryRun) {
             try {
-              if (yeeted !== undefined) {
-                await Deno.mkdir(yeeted, { recursive: true });
-                await Deno.remove(resolve(output, id, ".levelsync"));
-                await Deno.rename(resolve(output, id), resolve(yeeted, id));
-              } else {
-                await Deno.remove(resolve(output, id), { recursive: true });
-              }
+              await retry(async (signal) => {
+                const tempDir = await Deno.makeTempDir();
+                try {
+                  (await Deno.create(resolve(tempDir, ".levelsync"))).close();
+                  const zipReader = new ZipReader(
+                    new HttpReader(url, { preventHeadRequest: true, signal }),
+                    { signal },
+                  );
+                  try {
+                    await extractZipInto(zipReader, tempDir);
+                  } finally {
+                    zipReader.close();
+                  }
+                  await Deno.rename(tempDir, resolve(output, id));
+                } catch (e: unknown) {
+                  await Deno.remove(tempDir, { recursive: true });
+                  throw e;
+                }
+              }, { signal });
             } catch (e: unknown) {
-              console.error(`${bold(red("error"))}: Cannot remove ${id}:`, e);
+              console.error(`${bold(red("error"))}: Cannot download ${id}:`, e);
               error = true;
             }
           }
-        }
+        };
       }
-    } catch (e: unknown) {
-      console.error(`${bold(red("error"))}: Cannot read existing levels:`, e);
-      Deno.exit(3);
-    }
-    try {
-      await pool(
-        concurrency,
-        (function* () {
-          for (const { id, url } of added.values()) {
-            yield async (signal?: AbortSignal) => {
-              signal?.throwIfAborted();
-              console.log(`${green("Download")} ${id} (${url})`);
-              if (!dryRun) {
-                try {
-                  await retry(async (signal) => {
-                    const tempDir = await Deno.makeTempDir();
-                    try {
-                      (await Deno.create(resolve(tempDir, ".levelsync")))
-                        .close();
-                      const reader = new HttpReader(url, {
-                        preventHeadRequest: true,
-                        signal,
-                      });
-                      await extractZip(reader, tempDir, { signal });
-                      await Deno.rename(tempDir, resolve(output, id));
-                    } catch (e: unknown) {
-                      await Deno.remove(tempDir, { recursive: true });
-                      throw e;
-                    }
-                  }, { signal });
-                } catch (e: unknown) {
-                  console.error(
-                    `${bold(red("error"))}: Cannot download ${id}:`,
-                    e,
-                  );
-                  error = true;
-                }
-              }
-            };
-          }
-        })(),
-        { signal },
-      );
-    } catch {
-      // ignored
-    } finally {
-      terminateWorkers();
-    }
-    if (error) {
-      Deno.exit(1);
-    }
-  })
-  .parse();
+    })(),
+    { signal },
+  );
+} catch {
+  // ignored
+} finally {
+  terminateWorkers();
+}
+if (error) {
+  Deno.exit(1);
+}
