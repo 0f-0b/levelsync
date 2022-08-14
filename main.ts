@@ -1,12 +1,12 @@
 #!/usr/bin/env -S deno run --unstable --allow-read --allow-write --allow-net
 
 import { Command, ValidationError } from "./deps/cliffy/command.ts";
-import { bold, green, red, yellow } from "./deps/std/fmt/colors.ts";
 import { resolve } from "./deps/std/path.ts";
 import { HttpReader, terminateWorkers, ZipReader } from "./deps/zip.ts";
 
 import { associateBy } from "./collections/associate_by.ts";
 import { signal } from "./interrupt_signal.ts";
+import { log } from "./log.ts";
 import { cacheLevels, loadLevels } from "./orchard.ts";
 import { pool } from "./pool.ts";
 import { retry } from "./retry.ts";
@@ -59,20 +59,26 @@ const lock = resolve(output, ".levelsync.lock");
 try {
   Deno.openSync(lock, { write: true, createNew: true }).close();
 } catch {
-  console.warn(
-    `${
-      yellow("Warning")
-    } Another instance of levelsync is already running or was erroneously terminated. Manually remove '${lock}' to continue anyway.`,
+  log.warn(
+    `Another instance of levelsync is already running or was erroneously terminated. Manually remove '${lock}' to continue anyway.`,
   );
   Deno.exit(4);
 }
 addEventListener("unload", () => Deno.removeSync(lock));
 const levels = await (async () => {
   try {
-    await retry((signal) => cacheLevels(database, { signal }), { signal });
+    await retry((signal) => cacheLevels(database, { signal }), {
+      onError: (e, n) => {
+        if (n === 0) {
+          throw e;
+        }
+        log.warn(`Cannot update level database (${n} retries left):`, e);
+      },
+      signal,
+    });
     return loadLevels(database, codex);
   } catch (e: unknown) {
-    console.error(`${bold(red("error"))}: Cannot update level database:`, e);
+    log.error("Cannot update level database:", e);
     Deno.exit(3);
   }
 })();
@@ -86,7 +92,7 @@ try {
       continue;
     }
     if (!added.delete(id)) {
-      console.log(`${green("Remove")} ${id}`);
+      log.step("Remove", id);
       if (!dryRun) {
         try {
           if (yeeted !== undefined) {
@@ -97,14 +103,14 @@ try {
             await Deno.remove(resolve(output, id), { recursive: true });
           }
         } catch (e: unknown) {
-          console.error(`${bold(red("error"))}: Cannot remove ${id}:`, e);
+          log.error(`Cannot remove ${id}:`, e);
           error = true;
         }
       }
     }
   }
 } catch (e: unknown) {
-  console.error(`${bold(red("error"))}: Cannot read existing levels:`, e);
+  log.error("Cannot read existing levels:", e);
   Deno.exit(3);
 }
 try {
@@ -114,7 +120,7 @@ try {
       for (const { id, url } of added.values()) {
         yield async (signal?: AbortSignal) => {
           signal?.throwIfAborted();
-          console.log(`${green("Download")} ${id} (${url})`);
+          log.step("Download", `${id} (${url})`);
           if (!dryRun) {
             try {
               await retry(async (signal) => {
@@ -135,9 +141,17 @@ try {
                   await Deno.remove(tempDir, { recursive: true });
                   throw e;
                 }
-              }, { signal });
+              }, {
+                onError: (e, n) => {
+                  if (n === 0) {
+                    throw e;
+                  }
+                  log.warn(`Cannot download ${id} (${n} retries left):`, e);
+                },
+                signal,
+              });
             } catch (e: unknown) {
-              console.error(`${bold(red("error"))}: Cannot download ${id}:`, e);
+              log.error(`Cannot download ${id}:`, e);
               error = true;
             }
           }

@@ -68,7 +68,7 @@ interface WritableWriter {
   preventClose?: boolean;
   size?: number;
   initialized?: boolean;
-  init?(): unknown;
+  init?(sizeHint: number): unknown;
   getData?(): unknown;
 }
 
@@ -163,7 +163,7 @@ export class Data64URIWriter extends Writer {
 }
 
 export class Uint8ArrayWriter extends Writer {
-  init(): undefined;
+  init(sizeHint?: number): undefined;
   writeUint8Array(array: Uint8Array): undefined;
   getData(): Uint8Array;
 }

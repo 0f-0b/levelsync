@@ -1,4 +1,4 @@
-// export * from "https://deno.land/std@0.150.0/async/delay.ts";
+// export * from "https://deno.land/std@0.152.0/async/delay.ts";
 
 export interface DelayOptions {
   signal?: AbortSignal;
