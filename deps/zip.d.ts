@@ -49,10 +49,6 @@ interface ReadableByteStream extends ReadableStream<Uint8Array> {
   size?: () => number;
 }
 
-interface SeekableReadableByteStream extends ReadableByteStream {
-  offset?: number;
-}
-
 interface ReadableReader {
   readonly readable: ReadableByteStream;
   size?: number;
@@ -61,20 +57,31 @@ interface ReadableReader {
   init?(): unknown;
 }
 
-type WritableByteStream = WritableStream<Uint8Array>;
+interface SeekableReadableByteStream extends ReadableByteStream {
+  offset?: number;
+}
+
+interface SeekableReadableReader extends ReadableReader {
+  readonly readable: SeekableReadableByteStream;
+  size: number;
+  readUint8Array(index: number, length: number): Awaitable<Uint8Array>;
+}
+
+interface WritableByteStream extends WritableStream<Uint8Array> {
+  size?: number;
+}
 
 interface WritableWriter {
   readonly writable: WritableByteStream;
   preventClose?: boolean;
-  size?: number;
   initialized?: boolean;
   init?(sizeHint: number): unknown;
   getData?(): unknown;
 }
 
-type GetData<T extends WritableWriter> = T["getData"] extends () => infer R
-  ? Awaited<R>
-  : WritableByteStream;
+type GetData<
+  T extends WritableWriter,
+> = T["getData"] extends () => infer R ? Awaited<R> : T["writable"];
 
 declare class Stream {
   size: number;
@@ -82,7 +89,7 @@ declare class Stream {
   init(): Awaitable<undefined>;
 }
 
-export abstract class Reader extends Stream implements ReadableReader {
+export abstract class Reader extends Stream implements SeekableReadableReader {
   chunkSize?: number;
   readonly readable: SeekableReadableByteStream;
   abstract readUint8Array(index: number, length: number): Awaitable<Uint8Array>;
@@ -90,26 +97,26 @@ export abstract class Reader extends Stream implements ReadableReader {
 
 export class TextReader extends Reader {
   constructor(text: string);
-  init(): undefined;
-  readUint8Array(index: number, length: number): Promise<Uint8Array>;
+  override init(): undefined;
+  override readUint8Array(index: number, length: number): Promise<Uint8Array>;
 }
 
 export class BlobReader extends Reader {
   constructor(blob: Blob);
-  init(): undefined;
-  readUint8Array(index: number, length: number): Promise<Uint8Array>;
+  override init(): undefined;
+  override readUint8Array(index: number, length: number): Promise<Uint8Array>;
 }
 
 export class Data64URIReader extends Reader {
   constructor(dataURI: string);
-  init(): undefined;
-  readUint8Array(index: number, length: number): Uint8Array;
+  override init(): undefined;
+  override readUint8Array(index: number, length: number): Uint8Array;
 }
 
 export class Uint8ArrayReader extends Reader {
   constructor(array: Uint8Array);
-  init(): undefined;
-  readUint8Array(index: number, length: number): Uint8Array;
+  override init(): undefined;
+  override readUint8Array(index: number, length: number): Uint8Array;
 }
 
 export interface HttpOptions extends HttpRangeOptions {
@@ -118,8 +125,8 @@ export interface HttpOptions extends HttpRangeOptions {
 
 export class HttpReader extends Reader {
   constructor(url: string, options?: HttpOptions);
-  init(): Promise<undefined>;
-  readUint8Array(index: number, length: number): Promise<Uint8Array>;
+  override init(): Promise<undefined>;
+  override readUint8Array(index: number, length: number): Promise<Uint8Array>;
 }
 
 export interface HttpRangeOptions
@@ -132,8 +139,8 @@ export interface HttpRangeOptions
 
 export class HttpRangeReader extends Reader {
   constructor(url: string, options?: HttpRangeOptions);
-  init(): Promise<undefined>;
-  readUint8Array(index: number, length: number): Promise<Uint8Array>;
+  override init(): Promise<undefined>;
+  override readUint8Array(index: number, length: number): Promise<Uint8Array>;
 }
 
 export abstract class Writer extends Stream implements WritableWriter {
@@ -143,28 +150,28 @@ export abstract class Writer extends Stream implements WritableWriter {
 
 export class TextWriter extends Writer {
   constructor(encoding?: string);
-  init(): undefined;
-  writeUint8Array(array: Uint8Array): undefined;
+  override init(): undefined;
+  override writeUint8Array(array: Uint8Array): undefined;
   getData(): Promise<string>;
 }
 
-export class BlobWriter extends Writer {
+export class BlobWriter extends Stream implements WritableWriter {
+  readonly writable: WritableByteStream;
   constructor(contentType?: string);
-  init(): undefined;
-  writeUint8Array(array: Uint8Array): undefined;
-  getData(): Blob;
+  override init(): undefined;
+  getData(): Promise<Blob>;
 }
 
 export class Data64URIWriter extends Writer {
   constructor(contentType?: string);
-  init(): undefined;
-  writeUint8Array(array: Uint8Array): undefined;
+  override init(): undefined;
+  override writeUint8Array(array: Uint8Array): undefined;
   getData(): string;
 }
 
 export class Uint8ArrayWriter extends Writer {
-  init(sizeHint?: number): undefined;
-  writeUint8Array(array: Uint8Array): undefined;
+  override init(sizeHint?: number): undefined;
+  override writeUint8Array(array: Uint8Array): undefined;
   getData(): Uint8Array;
 }
 
@@ -267,6 +274,7 @@ export interface ReadOptions {
   useWebWorkers?: boolean;
   useCompressionStream?: boolean;
   signal?: AbortSignal;
+  preventClose?: boolean;
 }
 
 export interface EntryDataProgressEventHandler {

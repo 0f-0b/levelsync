@@ -39,6 +39,7 @@ export async function downloadFromB2(
   const remoteMtime = mtimeFromB2Headers(res.headers) ?? Infinity;
   const localMtime = mtimeFromFileInfo(await stat(path)) ?? -Infinity;
   if (remoteMtime <= localMtime) {
+    await res.body!.cancel();
     return false;
   }
   const tempFile = await Deno.makeTempFile();
