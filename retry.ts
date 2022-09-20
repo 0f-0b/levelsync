@@ -1,4 +1,4 @@
-import { delay } from "./deps/std/async/delay.ts";
+import { delay } from "./delay.ts";
 
 export interface RetryOptions {
   retries?: number;

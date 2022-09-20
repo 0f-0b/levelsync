@@ -15,7 +15,7 @@ export async function extractZipInto(
     const path = resolve(target, normalized);
     const { writable } = await Deno.create(path);
     try {
-      await entry.getData({ writable });
+      await entry.getData(writable);
     } catch (e: unknown) {
       await writable.close();
       throw e;

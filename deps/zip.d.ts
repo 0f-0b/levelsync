@@ -1,9 +1,25 @@
 // probably very incorrect but at least usable
 import type { Awaitable } from "../async.ts";
 
-export interface Codec {
-  append(data: Uint8Array): Awaitable<Uint8Array>;
-  flush(): Awaitable<Uint8Array>;
+type Simplify<T> = Omit<T, never>;
+type Merge<T, U> = Simplify<Omit<T, keyof U> & U>;
+
+export interface DeflateOptions {
+  level?: number;
+  chunkSize?: number;
+}
+
+export interface InflateOptions {
+  chunkSize?: number;
+}
+
+export interface SyncCodec {
+  append(data: Uint8Array): Uint8Array;
+  flush(): Uint8Array | undefined;
+}
+
+export interface EventBasedCodec {
+  push(data: Uint8Array, finalChunk?: boolean): unknown;
 }
 
 export interface Configuration {
@@ -13,8 +29,16 @@ export interface Configuration {
   terminateWorkerTimeout?: number;
   useWebWorkers?: boolean;
   useCompressionStream?: boolean;
-  Deflate?: Codec;
-  Inflate?: Codec;
+  Deflate?: new (options: DeflateOptions) => SyncCodec;
+  Inflate?: new (options: InflateOptions) => SyncCodec;
+  CompressionStream?: new (
+    format: string,
+    options: DeflateOptions,
+  ) => CompressionStream;
+  DecompressionStream?: new (
+    format: string,
+    options: InflateOptions,
+  ) => DecompressionStream;
   workerScripts?: {
     deflate?: string[];
     inflate?: string[];
@@ -22,34 +46,31 @@ export interface Configuration {
 }
 
 export function configure(configuration: Configuration): undefined;
-export function initShimAsyncCodec<
-  CodecType extends { push(data: Uint8Array, finalChunk: boolean): unknown },
-  CodecOptions,
->(
+export function initShimAsyncCodec<T extends EventBasedCodec, DO, IO>(
   library: {
-    Deflate: new (options?: CodecOptions) => CodecType;
-    Inflate: new (options?: CodecOptions) => CodecType;
+    Deflate: new (options: Merge<DO, DeflateOptions>) => T;
+    Inflate: new (options: Merge<IO, InflateOptions>) => T;
   },
   options: {
-    deflate?: CodecOptions;
-    inflate?: CodecOptions;
+    deflate?: DO;
+    inflate?: IO;
   } | undefined,
   registerDataHandler: (
-    codec: CodecType,
+    codec: T,
     handler: (data: ArrayLike<number>) => undefined,
   ) => unknown,
 ): {
-  Deflate: new (options?: CodecOptions) => Codec;
-  Inflate: new (options?: CodecOptions) => Codec;
+  Deflate: new (options?: DeflateOptions) => SyncCodec;
+  Inflate: new (options?: InflateOptions) => SyncCodec;
 };
 export function terminateWorkers(): undefined;
 export function getMimeType(filename: string): string;
 
-interface ReadableByteStream extends ReadableStream<Uint8Array> {
-  size?: () => number;
+export interface ReadableByteStream extends ReadableStream<Uint8Array> {
+  size?: number;
 }
 
-interface ReadableReader {
+export interface ReadableReader {
   readonly readable: ReadableByteStream;
   size?: number;
   chunkSize?: number;
@@ -57,21 +78,21 @@ interface ReadableReader {
   init?(): unknown;
 }
 
-interface SeekableReadableByteStream extends ReadableByteStream {
+export interface SeekableReadableByteStream extends ReadableByteStream {
   offset?: number;
 }
 
-interface SeekableReadableReader extends ReadableReader {
+export interface SeekableReadableReader extends ReadableReader {
   readonly readable: SeekableReadableByteStream;
   size: number;
   readUint8Array(index: number, length: number): Awaitable<Uint8Array>;
 }
 
-interface WritableByteStream extends WritableStream<Uint8Array> {
+export interface WritableByteStream extends WritableStream<Uint8Array> {
   size?: number;
 }
 
-interface WritableWriter {
+export interface WritableWriter {
   readonly writable: WritableByteStream;
   preventClose?: boolean;
   initialized?: boolean;
@@ -79,9 +100,12 @@ interface WritableWriter {
   getData?(): unknown;
 }
 
-type GetData<
+type GetDataImpl<
   T extends WritableWriter,
 > = T["getData"] extends () => infer R ? Awaited<R> : T["writable"];
+type GetData<
+  T extends WritableWriter | WritableByteStream,
+> = GetDataImpl<T extends WritableStream ? { writable: T } : T>;
 
 declare class Stream {
   size: number;
@@ -275,6 +299,7 @@ export interface ReadOptions {
   useCompressionStream?: boolean;
   signal?: AbortSignal;
   preventClose?: boolean;
+  transferStreams?: boolean;
 }
 
 export interface EntryDataProgressEventHandler {
@@ -284,7 +309,7 @@ export interface EntryDataProgressEventHandler {
 }
 
 export interface ReadableEntry extends Entry {
-  getData<T extends WritableWriter>(
+  getData<T extends WritableWriter | WritableByteStream>(
     writer: T,
     options?: EntryDataProgressEventHandler & ReadOptions,
   ): Promise<GetData<T>>;
@@ -306,7 +331,7 @@ export class ZipReader {
   readonly prependedData?: Uint8Array;
   readonly appendedData?: Uint8Array;
   constructor(
-    reader: ReadableReader,
+    reader: ReadableReader | ReadableByteStream,
     options?: ReadOptions & GetEntriesOptions,
   );
   getEntriesGenerator(
@@ -353,12 +378,12 @@ export interface CloseOptions {
   preventClose?: boolean;
 }
 
-export class ZipWriter<T extends WritableWriter> {
+export class ZipWriter<T extends WritableWriter | WritableByteStream> {
   readonly hasCorruptedEntries?: boolean;
   constructor(writer: T, options?: WriteOptions);
   add(
     name: string,
-    reader: ReadableReader | null,
+    reader: ReadableReader | ReadableByteStream | null,
     options?: EntryDataProgressEventHandler & AddEntryOptions & WriteOptions,
   ): Promise<Entry>;
   close(
