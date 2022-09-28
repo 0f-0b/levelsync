@@ -79,13 +79,18 @@ export interface ReadableReader {
 }
 
 export interface SeekableReadableByteStream extends ReadableByteStream {
+  diskNumberStart?: number;
   offset?: number;
 }
 
 export interface SeekableReadableReader extends ReadableReader {
   readonly readable: SeekableReadableByteStream;
   size: number;
-  readUint8Array(index: number, length: number): Awaitable<Uint8Array>;
+  readUint8Array(
+    index: number,
+    length: number,
+    diskNumber?: number,
+  ): Awaitable<Uint8Array>;
 }
 
 export interface WritableByteStream extends WritableStream<Uint8Array> {
@@ -116,7 +121,11 @@ declare class Stream {
 export abstract class Reader extends Stream implements SeekableReadableReader {
   chunkSize?: number;
   readonly readable: SeekableReadableByteStream;
-  abstract readUint8Array(index: number, length: number): Awaitable<Uint8Array>;
+  abstract readUint8Array(
+    index: number,
+    length: number,
+    diskNumber?: number,
+  ): Awaitable<Uint8Array>;
 }
 
 export class TextReader extends Reader {
@@ -167,6 +176,16 @@ export class HttpRangeReader extends Reader {
   override readUint8Array(index: number, length: number): Promise<Uint8Array>;
 }
 
+export class SplitZipReader extends Reader {
+  constructor(readers: readonly Reader[]);
+  override init(): Promise<undefined>;
+  override readUint8Array(
+    index: number,
+    length: number,
+    diskNumber?: number,
+  ): Promise<Uint8Array>;
+}
+
 export abstract class Writer extends Stream implements WritableWriter {
   readonly writable: WritableByteStream;
   writeUint8Array(array: Uint8Array): Awaitable<undefined>;
@@ -212,6 +231,7 @@ export interface ExtraField {
 
 export interface ExtraFieldZip64 extends ExtraField {
   values: number[];
+  diskNumberStart?: number;
   offset?: number;
   compressedSize?: number;
   uncompressedSize?: number;
@@ -331,7 +351,7 @@ export class ZipReader {
   readonly prependedData?: Uint8Array;
   readonly appendedData?: Uint8Array;
   constructor(
-    reader: ReadableReader | ReadableByteStream,
+    reader: ReadableReader | ReadableByteStream | readonly Reader[],
     options?: ReadOptions & GetEntriesOptions,
   );
   getEntriesGenerator(
@@ -414,3 +434,4 @@ export const ERR_INVALID_EXTRAFIELD_TYPE: string;
 export const ERR_INVALID_EXTRAFIELD_DATA: string;
 export const ERR_INVALID_ENCRYPTION_STRENGTH: string;
 export const ERR_UNSUPPORTED_FORMAT: string;
+export const ERR_SPLIT_ZIP_FILE: string;
