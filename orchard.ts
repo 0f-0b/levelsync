@@ -2,19 +2,6 @@ import { DB } from "./deps/sqlite.ts";
 import { dedent } from "./deps/string_dedent.ts";
 import { array, object, string } from "./deps/superstruct.ts";
 
-import { downloadFromB2, type DownloadOptions } from "./b2.ts";
-
-export async function cacheLevels(
-  path: string,
-  options?: DownloadOptions,
-): Promise<boolean> {
-  return await downloadFromB2(
-    "https://codex.rhythm.cafe/orchard-main.db",
-    path,
-    options,
-  );
-}
-
 export interface Level {
   id: string;
   url: string;

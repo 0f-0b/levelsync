@@ -1,5 +1,5 @@
 {
   "tasks": {
-    "lint": "deno fmt --check && deno lint && deno check --unstable main.ts"
+    "lint": "deno fmt --check && deno lint && deno check --unstable --remote main.ts"
   }
 }

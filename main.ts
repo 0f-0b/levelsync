@@ -4,16 +4,17 @@ import { Command, ValidationError } from "./deps/cliffy/command.ts";
 import { resolve } from "./deps/std/path.ts";
 import { HttpReader, terminateWorkers, ZipReader } from "./deps/zip.ts";
 
+import { downloadFromB2 } from "./b2.ts";
 import { associateBy } from "./collections/associate_by.ts";
 import { signal } from "./interrupt_signal.ts";
 import { log } from "./log.ts";
-import { cacheLevels, loadLevels } from "./orchard.ts";
+import { loadLevels } from "./orchard.ts";
 import { pool } from "./pool.ts";
 import { retry } from "./retry.ts";
 import { extractZipInto } from "./zip.ts";
 
 const {
-  options: { yeeted, database, concurrency, dryRun, codex },
+  options: { yeeted, database, concurrency, dryRun, orchard, codex },
   args: [output],
 } = await new Command()
   .name("levelsync")
@@ -22,13 +23,21 @@ const {
     Automatically download Rhythm Doctor levels.
   `)
   .type("positive-integer", ({ label, name, value }) => {
-    const result = Number(value);
-    if (!(Number.isInteger(result) && result > 0)) {
+    if (!/^[1-9]\d*$/.test(value)) {
       throw new ValidationError(
         `${label} "${name}" must be a positive integer, but got "${value}".`,
       );
     }
-    return result;
+    return Number(value);
+  })
+  .type("url", ({ label, name, value }) => {
+    try {
+      return new URL(value).href;
+    } catch {
+      throw new ValidationError(
+        `${label} "${name}" must be a URL, but got "${value}".`,
+      );
+    }
   })
   .option(
     "-y, --yeeted <path:file>",
@@ -49,6 +58,11 @@ const {
     "Do not actually add or remove levels.",
   )
   .option(
+    "--orchard <url:url>",
+    "URL of the level database.",
+    { default: "https://codex.rhythm.cafe/orchard-main.db" },
+  )
+  .option(
     "--codex",
     "Download levels from codex.rhythm.cafe.",
   )
@@ -67,7 +81,7 @@ try {
 addEventListener("unload", () => Deno.removeSync(lock));
 const levels = await (async () => {
   try {
-    await retry((signal) => cacheLevels(database, { signal }), {
+    await retry((signal) => downloadFromB2(orchard, database, { signal }), {
       onError: (e, n) => {
         if (n === 0) {
           throw e;

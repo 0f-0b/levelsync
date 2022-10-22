@@ -41,6 +41,11 @@ deno install -fr --unstable --allow-read --allow-write --allow-net https://cdn.j
 
   Show levels to be added or removed but do not actually update them.
 
+- **`--orchard`** _`URL`_
+
+  Download the level database from `URL`. Defaults to
+  `https://codex.rhythm.cafe/orchard-main.db`.
+
 - **`--codex`**
 
   Always download levels from `codex.rhythm.cafe`.

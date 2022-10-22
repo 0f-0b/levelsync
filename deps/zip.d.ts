@@ -1,4 +1,3 @@
-// probably very incorrect but at least usable
 import type { Awaitable } from "../async.ts";
 
 type Simplify<T> = Omit<T, never>;
@@ -78,6 +77,11 @@ export interface ReadableReader {
   init?(): unknown;
 }
 
+export type ReadableReaderLike =
+  | ReadableReader
+  | ReadableByteStream
+  | readonly Reader[];
+
 export interface SeekableReadableByteStream extends ReadableByteStream {
   diskNumberStart?: number;
   offset?: number;
@@ -85,6 +89,7 @@ export interface SeekableReadableByteStream extends ReadableByteStream {
 
 export interface SeekableReadableReader extends ReadableReader {
   readonly readable: SeekableReadableByteStream;
+  lastDiskNumber?: number;
   size: number;
   readUint8Array(
     index: number,
@@ -99,18 +104,19 @@ export interface WritableByteStream extends WritableStream<Uint8Array> {
 
 export interface WritableWriter {
   readonly writable: WritableByteStream;
-  preventClose?: boolean;
+  diskNumber?: number;
+  diskOffset?: number;
+  availableSize?: number;
+  maxSize?: number;
   initialized?: boolean;
-  init?(sizeHint: number): unknown;
+  init?(sizeHint?: number): unknown;
   getData?(): unknown;
 }
 
-type GetDataImpl<
-  T extends WritableWriter,
-> = T["getData"] extends () => infer R ? Awaited<R> : T["writable"];
-type GetData<
-  T extends WritableWriter | WritableByteStream,
-> = GetDataImpl<T extends WritableStream ? { writable: T } : T>;
+export type WritableWriterLike =
+  | WritableWriter
+  | WritableByteStream
+  | DiskWriterIterator;
 
 declare class Stream {
   size: number;
@@ -128,25 +134,25 @@ export abstract class Reader extends Stream implements SeekableReadableReader {
   ): Awaitable<Uint8Array>;
 }
 
-export class TextReader extends Reader {
+export class TextReader extends Reader implements SeekableReadableReader {
   constructor(text: string);
   override init(): undefined;
   override readUint8Array(index: number, length: number): Promise<Uint8Array>;
 }
 
-export class BlobReader extends Reader {
+export class BlobReader extends Reader implements SeekableReadableReader {
   constructor(blob: Blob);
   override init(): undefined;
   override readUint8Array(index: number, length: number): Promise<Uint8Array>;
 }
 
-export class Data64URIReader extends Reader {
+export class Data64URIReader extends Reader implements SeekableReadableReader {
   constructor(dataURI: string);
   override init(): undefined;
   override readUint8Array(index: number, length: number): Uint8Array;
 }
 
-export class Uint8ArrayReader extends Reader {
+export class Uint8ArrayReader extends Reader implements SeekableReadableReader {
   constructor(array: Uint8Array);
   override init(): undefined;
   override readUint8Array(index: number, length: number): Uint8Array;
@@ -156,7 +162,7 @@ export interface HttpOptions extends HttpRangeOptions {
   useRangeHeader?: boolean;
 }
 
-export class HttpReader extends Reader {
+export class HttpReader extends Reader implements SeekableReadableReader {
   constructor(url: string, options?: HttpOptions);
   override init(): Promise<undefined>;
   override readUint8Array(index: number, length: number): Promise<Uint8Array>;
@@ -170,13 +176,14 @@ export interface HttpRangeOptions
   headers?: Iterable<[string, string]> | Record<string, string>;
 }
 
-export class HttpRangeReader extends Reader {
+export class HttpRangeReader extends Reader implements SeekableReadableReader {
   constructor(url: string, options?: HttpRangeOptions);
   override init(): Promise<undefined>;
   override readUint8Array(index: number, length: number): Promise<Uint8Array>;
 }
 
-export class SplitZipReader extends Reader {
+export class SplitDataReader extends Reader implements SeekableReadableReader {
+  lastDiskNumber?: number;
   constructor(readers: readonly Reader[]);
   override init(): Promise<undefined>;
   override readUint8Array(
@@ -186,12 +193,17 @@ export class SplitZipReader extends Reader {
   ): Promise<Uint8Array>;
 }
 
+/** @deprecated */
+export const SplitZipReader: typeof SplitDataReader;
+/** @deprecated */
+export type SplitZipReader = SplitDataReader;
+
 export abstract class Writer extends Stream implements WritableWriter {
   readonly writable: WritableByteStream;
   writeUint8Array(array: Uint8Array): Awaitable<undefined>;
 }
 
-export class TextWriter extends Writer {
+export class TextWriter extends Writer implements WritableWriter {
   constructor(encoding?: string);
   override init(): undefined;
   override writeUint8Array(array: Uint8Array): undefined;
@@ -205,18 +217,45 @@ export class BlobWriter extends Stream implements WritableWriter {
   getData(): Promise<Blob>;
 }
 
-export class Data64URIWriter extends Writer {
+export class Data64URIWriter extends Writer implements WritableWriter {
   constructor(contentType?: string);
   override init(): undefined;
   override writeUint8Array(array: Uint8Array): undefined;
   getData(): string;
 }
 
-export class Uint8ArrayWriter extends Writer {
+export class Uint8ArrayWriter extends Writer implements WritableWriter {
   override init(sizeHint?: number): undefined;
   override writeUint8Array(array: Uint8Array): undefined;
   getData(): Uint8Array;
 }
+
+export interface DiskWriter {
+  readonly writable: WritableByteStream;
+  size?: number;
+  maxSize?: number;
+  initialized?: boolean;
+  init?(): unknown;
+}
+
+export interface DiskWriterIterator {
+  next(): Awaitable<IteratorResult<DiskWriter, DiskWriter | undefined>>;
+}
+
+export class SplitDataWriter extends Stream implements WritableWriter {
+  diskNumber: number;
+  diskOffset: number;
+  availableSize: number;
+  maxSize: number;
+  readonly writable: WritableByteStream;
+  constructor(writers: DiskWriterIterator, splitAt?: number);
+  override init(): undefined;
+}
+
+/** @deprecated */
+export const SplitZipWriter: typeof SplitDataWriter;
+/** @deprecated */
+export type SplitZipWriter = SplitDataWriter;
 
 export interface BitFlag {
   level: number;
@@ -278,6 +317,7 @@ export interface ExtraFieldExtendedTimestamp extends ExtraField {
 }
 
 export interface Entry {
+  diskNumberStart: number;
   offset: number;
   filename: string;
   rawFilename: Uint8Array;
@@ -328,11 +368,21 @@ export interface EntryDataProgressEventHandler {
   onend?: (computedSize: number) => unknown;
 }
 
+type WritableWriterFrom<
+  T extends WritableWriterLike,
+> = T extends DiskWriterIterator ? SplitDataWriter
+  : T extends WritableStream ? { writable: T }
+  : T;
+type GetData<
+  T extends WritableWriter,
+> = T["getData"] extends () => infer R ? Awaited<R>
+  : T["writable"];
+
 export interface ReadableEntry extends Entry {
-  getData<T extends WritableWriter | WritableByteStream>(
+  getData<T extends WritableWriterLike>(
     writer: T,
     options?: EntryDataProgressEventHandler & ReadOptions,
-  ): Promise<GetData<T>>;
+  ): Promise<GetData<WritableWriterFrom<T>>>;
 }
 
 export interface GetEntriesOptions {
@@ -351,7 +401,7 @@ export class ZipReader {
   readonly prependedData?: Uint8Array;
   readonly appendedData?: Uint8Array;
   constructor(
-    reader: ReadableReader | ReadableByteStream | readonly Reader[],
+    reader: ReadableReaderLike,
     options?: ReadOptions & GetEntriesOptions,
   );
   getEntriesGenerator(
@@ -398,18 +448,18 @@ export interface CloseOptions {
   preventClose?: boolean;
 }
 
-export class ZipWriter<T extends WritableWriter | WritableByteStream> {
+export class ZipWriter<T extends WritableWriterLike> {
   readonly hasCorruptedEntries?: boolean;
-  constructor(writer: T, options?: WriteOptions);
+  constructor(writer: T, options?: WriteOptions & CloseOptions);
   add(
     name: string,
-    reader: ReadableReader | ReadableByteStream | null,
-    options?: EntryDataProgressEventHandler & AddEntryOptions & WriteOptions,
+    reader: ReadableReaderLike | null,
+    options?: EntryDataProgressEventHandler & WriteOptions & AddEntryOptions,
   ): Promise<Entry>;
   close(
     comment?: Uint8Array,
     options?: EntryProgressEventHandler & CloseOptions,
-  ): Promise<GetData<T>>;
+  ): Promise<GetData<WritableWriterFrom<T>>>;
 }
 
 export const ERR_HTTP_RANGE: string;
@@ -435,3 +485,4 @@ export const ERR_INVALID_EXTRAFIELD_DATA: string;
 export const ERR_INVALID_ENCRYPTION_STRENGTH: string;
 export const ERR_UNSUPPORTED_FORMAT: string;
 export const ERR_SPLIT_ZIP_FILE: string;
+export const ERR_ITERATOR_COMPLETED_TOO_SOON: string;
