@@ -5,10 +5,9 @@ import { resolve } from "./deps/std/path.ts";
 import { HttpReader, terminateWorkers, ZipReader } from "./deps/zip.ts";
 
 import { downloadFromB2 } from "./b2.ts";
-import { associateBy } from "./collections/associate_by.ts";
 import { signal } from "./interrupt_signal.ts";
 import { log } from "./log.ts";
-import { loadLevels } from "./orchard.ts";
+import { loadLevels, orchardURL } from "./orchard.ts";
 import { pool } from "./pool.ts";
 import { retry } from "./retry.ts";
 import { extractZipInto } from "./zip.ts";
@@ -60,7 +59,7 @@ const {
   .option(
     "--orchard <url:url>",
     "URL of the level database.",
-    { default: "https://codex.rhythm.cafe/orchard-main.db" },
+    { default: orchardURL },
   )
   .option(
     "--codex",
@@ -79,7 +78,7 @@ try {
   Deno.exit(4);
 }
 addEventListener("unload", () => Deno.removeSync(lock));
-const levels = await (async () => {
+const added = await (async () => {
   try {
     await retry((signal) => downloadFromB2(orchard, database, { signal }), {
       onError: (e, n) => {
@@ -97,7 +96,6 @@ const levels = await (async () => {
   }
 })();
 let error = false;
-const added = associateBy(levels, ({ id }) => id);
 try {
   for await (const { name: id } of Deno.readDir(output)) {
     try {
@@ -131,7 +129,7 @@ try {
   await pool(
     concurrency,
     (function* () {
-      for (const { id, url } of added.values()) {
+      for (const [id, url] of added) {
         yield async (signal?: AbortSignal) => {
           signal?.throwIfAborted();
           log.step("Download", `${id} (${url})`);

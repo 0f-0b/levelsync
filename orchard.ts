@@ -1,26 +1,30 @@
 import { DB } from "./deps/sqlite.ts";
-import { dedent } from "./deps/string_dedent.ts";
-import { array, object, string } from "./deps/superstruct.ts";
+import { assert } from "./deps/std/testing/asserts.ts";
 
-export interface Level {
-  id: string;
-  url: string;
-}
+export const orchardURL =
+  "https://f000.backblazeb2.com/file/rdsqlite/backups/orchard-main.db";
 
-const LevelsQuery = array(object({
-  id: string,
-  url: string,
-}));
-
-export function loadLevels(path: string, codex = false): Level[] {
+export function loadLevels(path: string, codex = false): Map<string, string> {
   const db = new DB(path, { mode: "read" });
   try {
-    return LevelsQuery.create(db.queryEntries(dedent`
-      select id, ${codex ? "url2" : "iif(url notnull, url, url2)"} url
+    const levels = new Map<string, string>();
+    const query = db.prepareQuery(`
+      select id, ${codex ? "url2" : "iif(url notnull, url, url2)"}
       from level
       group by song, authors, artist
       order by max(last_updated) desc
-    `));
+    `);
+    try {
+      for (const [id, url] of query.iter()) {
+        assert(typeof id === "string");
+        assert(typeof url === "string");
+        assert(!levels.has(id));
+        levels.set(id, url);
+      }
+      return levels;
+    } finally {
+      query.finalize();
+    }
   } finally {
     db.close();
   }
