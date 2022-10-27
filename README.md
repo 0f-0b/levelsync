@@ -11,7 +11,7 @@ Make sure you [have Deno installed](https://deno.land/#installation), and then
 run the following in a terminal:
 
 ```shell
-deno install -fr --unstable --allow-read --allow-write --allow-net https://cdn.jsdelivr.net/gh/0f-0b/levelsync@main/main.ts
+deno install -fr --allow-read --allow-write --allow-net https://cdn.jsdelivr.net/gh/0f-0b/levelsync@main/main.ts
 ```
 
 ## Synopsis
