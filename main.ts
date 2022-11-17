@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --no-lock --allow-read --allow-write --allow-net
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-net
 
 import { Command, ValidationError } from "./deps/cliffy/command.ts";
 import { resolve } from "./deps/std/path.ts";
