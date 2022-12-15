@@ -4,22 +4,28 @@ import { assert } from "./deps/std/testing/asserts.ts";
 export const orchardURL =
   "https://f000.backblazeb2.com/file/rdsqlite/backups/orchard-main.db";
 
-export function loadLevels(path: string, codex = false): Map<string, string> {
+export interface Level {
+  originalURL: string | null;
+  codexURL: string;
+}
+
+export function loadLevels(path: string): Map<string, Level> {
   const db = new DB(path, { mode: "read" });
   try {
-    const levels = new Map<string, string>();
+    const levels = new Map<string, Level>();
     const query = db.prepareQuery(`
-      select id, ${codex ? "url2" : "iif(url notnull, url, url2)"}
+      select id, url, url2
       from level
       group by song, authors, artist
       order by max(last_updated) desc
     `);
     try {
-      for (const [id, url] of query.iter()) {
+      for (const [id, originalURL, codexURL] of query.iter()) {
         assert(typeof id === "string");
-        assert(typeof url === "string");
+        assert(typeof originalURL === "string" || originalURL === null);
+        assert(typeof codexURL === "string");
         assert(!levels.has(id));
-        levels.set(id, url);
+        levels.set(id, { originalURL, codexURL });
       }
       return levels;
     } finally {

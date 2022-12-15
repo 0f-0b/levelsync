@@ -70,10 +70,24 @@ const {
 Deno.mkdirSync(output, { recursive: true });
 const lock = resolve(output, ".levelsync.lock");
 try {
-  Deno.openSync(lock, { write: true, createNew: true }).close();
-} catch {
+  Deno.writeTextFileSync(lock, `${Deno.pid}`, { createNew: true });
+} catch (e: unknown) {
+  if (!(e instanceof Deno.errors.AlreadyExists)) {
+    throw e;
+  }
+  let pid: number | undefined;
+  try {
+    const text = Deno.readTextFileSync(lock);
+    if (/^\d+$/.test(text)) {
+      pid = Number(text);
+    }
+  } catch {
+    // ignored
+  }
   log.warn(
-    `Another instance of levelsync is already running or was erroneously terminated. Manually remove '${lock}' to continue anyway.`,
+    `Another instance of levelsync${
+      pid === undefined ? "" : ` (pid ${pid})`
+    } is already running or was erroneously terminated. Manually remove '${lock}' to continue anyway.`,
   );
   Deno.exit(4);
 }
@@ -89,7 +103,7 @@ const added = await (async () => {
       },
       signal,
     });
-    return loadLevels(database, codex);
+    return loadLevels(database);
   } catch (e: unknown) {
     log.error("Cannot update level database:", e);
     Deno.exit(3);
@@ -129,9 +143,18 @@ try {
   await pool(
     concurrency,
     (function* () {
-      for (const [id, url] of added) {
+      for (const [id, { originalURL, codexURL }] of added) {
         yield async (signal?: AbortSignal) => {
           signal?.throwIfAborted();
+          let fallback: boolean;
+          let url: string;
+          if (codex || originalURL === null) {
+            fallback = true;
+            url = codexURL;
+          } else {
+            fallback = false;
+            url = originalURL;
+          }
           log.step("Download", `${id} (${url})`);
           if (!dryRun) {
             try {
@@ -157,6 +180,16 @@ try {
                 onError: (e, n) => {
                   if (n === 0) {
                     throw e;
+                  }
+                  if (
+                    !fallback && e instanceof Error &&
+                    e.message === "HTTP error Forbidden"
+                  ) {
+                    e = new Error(
+                      `The original file have been deleted. Will retry with '${codexURL}'.`,
+                    );
+                    fallback = true;
+                    url = codexURL;
                   }
                   log.warn(`Cannot download ${id} (${n} retries left):`, e);
                 },
