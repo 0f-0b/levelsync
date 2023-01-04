@@ -1,6 +1,7 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net
 
 import { Command, ValidationError } from "./deps/cliffy/command.ts";
+import { AsyncSemaphore } from "./deps/esfx/async_semaphore.ts";
 import { resolve } from "./deps/std/path.ts";
 import { HttpReader, terminateWorkers, ZipReader } from "./deps/zip.ts";
 
@@ -8,7 +9,6 @@ import { downloadFromB2 } from "./b2.ts";
 import { signal } from "./interrupt_signal.ts";
 import { log } from "./log.ts";
 import { loadLevels, orchardURL } from "./orchard.ts";
-import { pool } from "./pool.ts";
 import { retry } from "./retry.ts";
 import { extractZipInto } from "./zip.ts";
 
@@ -94,7 +94,7 @@ try {
 addEventListener("unload", () => Deno.removeSync(lock));
 const added = await (async () => {
   try {
-    await retry((signal) => downloadFromB2(orchard, database, { signal }), {
+    await retry(() => downloadFromB2(orchard, database, { signal }), {
       onError: (e, n) => {
         if (n === 0) {
           throw e;
@@ -119,19 +119,20 @@ try {
     }
     if (!added.delete(id)) {
       log.step("Remove", id);
-      if (!dryRun) {
-        try {
-          if (yeeted !== undefined) {
-            await Deno.mkdir(yeeted, { recursive: true });
-            await Deno.remove(resolve(output, id, ".levelsync"));
-            await Deno.rename(resolve(output, id), resolve(yeeted, id));
-          } else {
-            await Deno.remove(resolve(output, id), { recursive: true });
-          }
-        } catch (e: unknown) {
-          log.error(`Cannot remove ${id}:`, e);
-          error = true;
+      if (dryRun) {
+        continue;
+      }
+      try {
+        if (yeeted !== undefined) {
+          await Deno.mkdir(yeeted, { recursive: true });
+          await Deno.remove(resolve(output, id, ".levelsync"));
+          await Deno.rename(resolve(output, id), resolve(yeeted, id));
+        } else {
+          await Deno.remove(resolve(output, id), { recursive: true });
         }
+      } catch (e: unknown) {
+        log.error(`Cannot remove ${id}:`, e);
+        error = true;
       }
     }
   }
@@ -139,74 +140,79 @@ try {
   log.error("Cannot read existing levels:", e);
   Deno.exit(3);
 }
+const semaphore = new AsyncSemaphore(concurrency);
 try {
-  await pool(
-    concurrency,
-    (function* () {
-      for (const [id, { originalURL, codexURL }] of added) {
-        yield async (signal?: AbortSignal) => {
-          signal?.throwIfAborted();
-          let fallback: boolean;
-          let url: string;
-          if (codex || originalURL === null) {
-            fallback = true;
-            url = codexURL;
-          } else {
-            fallback = false;
-            url = originalURL;
-          }
-          log.step("Download", `${id} (${url})`);
-          if (!dryRun) {
-            try {
-              await retry(async (signal) => {
-                const tempDir = await Deno.makeTempDir();
-                try {
-                  (await Deno.create(resolve(tempDir, ".levelsync"))).close();
-                  const zipReader = new ZipReader(
-                    new HttpReader(url, { preventHeadRequest: true, signal }),
-                    { signal },
-                  );
-                  try {
-                    await extractZipInto(zipReader, tempDir);
-                  } finally {
-                    zipReader.close();
-                  }
-                  await Deno.rename(tempDir, resolve(output, id));
-                } catch (e: unknown) {
-                  await Deno.remove(tempDir, { recursive: true });
-                  throw e;
-                }
-              }, {
-                onError: (e, n) => {
-                  if (n === 0) {
-                    throw e;
-                  }
-                  if (
-                    !fallback && e instanceof Error &&
-                    e.message === "HTTP error Forbidden"
-                  ) {
-                    e = new Error(
-                      `The original file has been deleted. Will retry with '${codexURL}'.`,
-                    );
-                    fallback = true;
-                    url = codexURL;
-                  }
-                  log.warn(`Cannot download ${id} (${n} retries left):`, e);
-                },
-                signal,
-              });
-            } catch (e: unknown) {
-              log.error(`Cannot download ${id}:`, e);
-              error = true;
-            }
-          }
-        };
+  await Promise.all(
+    Array.from(added, async ([id, { originalURL, codexURL }]) => {
+      let fallback: boolean;
+      let url: string;
+      if (codex || originalURL === null) {
+        fallback = true;
+        url = codexURL;
+      } else {
+        fallback = false;
+        url = originalURL;
       }
-    })(),
-    { signal },
+      let started = false;
+      try {
+        await retry(async (attempts) => {
+          await semaphore.wait();
+          try {
+            signal?.throwIfAborted();
+            if (attempts === 0) {
+              log.step("Download", `${id} (${url})`);
+              started = true;
+            }
+            if (dryRun) {
+              return;
+            }
+            const tempDir = await Deno.makeTempDir();
+            try {
+              (await Deno.create(resolve(tempDir, ".levelsync"))).close();
+              const zipReader = new ZipReader(
+                new HttpReader(url, { preventHeadRequest: true, signal }),
+                { signal },
+              );
+              try {
+                await extractZipInto(zipReader, tempDir);
+              } finally {
+                zipReader.close();
+              }
+              await Deno.rename(tempDir, resolve(output, id));
+            } catch (e: unknown) {
+              await Deno.remove(tempDir, { recursive: true });
+              throw e;
+            }
+          } finally {
+            semaphore.release();
+          }
+        }, {
+          onError: (e, n) => {
+            if (n === 0) {
+              throw e;
+            }
+            if (
+              !fallback && e instanceof Error &&
+              e.message === "HTTP error Forbidden"
+            ) {
+              e = new Error(
+                `The original file has been deleted. Will retry with '${codexURL}'.`,
+              );
+              fallback = true;
+              url = codexURL;
+            }
+            log.warn(`Cannot download ${id} (${n} retries left):`, e);
+          },
+          signal,
+        });
+      } catch (e: unknown) {
+        if (started) {
+          log.error(`Cannot download ${id}:`, e);
+        }
+        error = true;
+      }
+    }),
   );
-} catch {
-  // ignored
 } finally {
   terminateWorkers();
 }

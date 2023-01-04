@@ -100,6 +100,15 @@
     "https://deno.land/x/zipjs@v2.6.61/lib/core/zip-reader.js": "4ad2cf7ec18b57e49388f02df5efa42454c8f4aeb83c780969ed2d18423ffbf2",
     "https://deno.land/x/zipjs@v2.6.61/lib/core/zip-writer.js": "f4f83b205bc465b931aedccd1bdc7aeba22f9a01c57819d3ef3dc2d18c02bfde",
     "https://deno.land/x/zipjs@v2.6.61/lib/z-worker-inline.js": "5fbfc7b8871e07bf925b8af1cf3da8a7ac29defc193c2112673dd83668b1f8e4",
-    "https://deno.land/x/zipjs@v2.6.61/lib/zip.js": "0f9e0c4bc744e4d9bd95f55293d3e2d7196dc49abb87bfc7d9d127b57aceb083"
+    "https://deno.land/x/zipjs@v2.6.61/lib/zip.js": "0f9e0c4bc744e4d9bd95f55293d3e2d7196dc49abb87bfc7d9d127b57aceb083",
+    "https://esm.sh/@esfx/async-semaphore@1.0.0?bundle&pin=v102": "114b254cd9a657baddd5bd2d945c027718ff4036be646349bf716c8b735c0d82",
+    "https://esm.sh/v102/@esfx/async-semaphore@1.0.0/deno/async-semaphore.bundle.js": "31dc7ba957aec43cdc95bd73ebe1118e87fc5986297d4d7182817722933dd77c",
+    "https://esm.sh/v102/@esfx/async-semaphore@1.0.0/dist/types/index.d.ts": "89ec396dc2401beb3756d0f8cd917fcd8daa020771008dff62c90cf1a6a3d876",
+    "https://esm.sh/v102/@esfx/cancelable@1.0.0/dist/types/index.d.ts": "45ad0e400b56aa21c906e9f294a0d944f83d2e61ed91634f3a707e4293600043",
+    "https://esm.sh/v102/@esfx/disposable@1.0.0/dist/types/asyncDisposable.d.ts": "48b8eef8a5fdcf6413c0630f83b06e36cbb1e645aa2e1f389e9c8805e6bfb5f6",
+    "https://esm.sh/v102/@esfx/disposable@1.0.0/dist/types/asyncDisposableStack.d.ts": "40f580b03f58a47695312a3e9ecee23069e56d693a96e5ec92ac18855ce50082",
+    "https://esm.sh/v102/@esfx/disposable@1.0.0/dist/types/disposable.d.ts": "ed9538fbeb85f81917f5f8fcd82bc713f69c328318c529fb661172a31357f0b9",
+    "https://esm.sh/v102/@esfx/disposable@1.0.0/dist/types/disposableStack.d.ts": "b599ad1e2932019aec444f9a6cc3c62e38a27102d6908732835f1d427bb22a1e",
+    "https://esm.sh/v102/@esfx/disposable@1.0.0/dist/types/index.d.ts": "78abc74b5c169853dfb0885ed94f295896f0e1092ccdfd00dc21071e0e4015aa"
   }
 }
