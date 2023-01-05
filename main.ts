@@ -92,7 +92,7 @@ try {
   Deno.exit(4);
 }
 addEventListener("unload", () => Deno.removeSync(lock));
-const added = await (async () => {
+const toAdd = await (async () => {
   try {
     await retry(() => downloadFromB2(orchard, database, { signal }), {
       onError: (e, n) => {
@@ -109,6 +109,7 @@ const added = await (async () => {
     Deno.exit(3);
   }
 })();
+const toRemove = new Set<string>();
 let error = false;
 try {
   for await (const { name: id } of Deno.readDir(output)) {
@@ -117,33 +118,43 @@ try {
     } catch {
       continue;
     }
-    if (!added.delete(id)) {
-      log.step("Remove", id);
-      if (dryRun) {
-        continue;
-      }
-      try {
-        if (yeeted !== undefined) {
-          await Deno.mkdir(yeeted, { recursive: true });
-          await Deno.remove(resolve(output, id, ".levelsync"));
-          await Deno.rename(resolve(output, id), resolve(yeeted, id));
-        } else {
-          await Deno.remove(resolve(output, id), { recursive: true });
-        }
-      } catch (e: unknown) {
-        log.error(`Cannot remove ${id}:`, e);
-        error = true;
-      }
+    if (!toAdd.delete(id)) {
+      toRemove.add(id);
     }
   }
 } catch (e: unknown) {
   log.error("Cannot read existing levels:", e);
   Deno.exit(3);
 }
+if (
+  toRemove.size >= 20 &&
+  !confirm(`About to remove ${toRemove.size} levels. Continue?`)
+) {
+  log.warn(`Refusing to remove ${toRemove.size} levels.`);
+  Deno.exit(3);
+}
+for (const id of toRemove) {
+  log.step("Remove", id);
+  if (dryRun) {
+    continue;
+  }
+  try {
+    if (yeeted !== undefined) {
+      await Deno.mkdir(yeeted, { recursive: true });
+      await Deno.remove(resolve(output, id, ".levelsync"));
+      await Deno.rename(resolve(output, id), resolve(yeeted, id));
+    } else {
+      await Deno.remove(resolve(output, id), { recursive: true });
+    }
+  } catch (e: unknown) {
+    log.error(`Cannot remove ${id}:`, e);
+    error = true;
+  }
+}
 const semaphore = new AsyncSemaphore(concurrency);
 try {
   await Promise.all(
-    Array.from(added, async ([id, { originalURL, codexURL }]) => {
+    Array.from(toAdd, async ([id, { originalURL, codexURL }]) => {
       let fallback: boolean;
       let url: string;
       if (codex || originalURL === null) {
