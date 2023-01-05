@@ -44,7 +44,7 @@ deno install -fr --allow-read --allow-write --allow-net https://cdn.jsdelivr.net
 - **`--orchard`** _`URL`_
 
   Download the level database from `URL`. Defaults to
-  `https://codex.rhythm.cafe/orchard-main.db`.
+  `https://f000.backblazeb2.com/file/rdsqlite/backups/orchard-main.db`.
 
 - **`--codex`**
 
