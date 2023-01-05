@@ -186,7 +186,7 @@ try {
                     e.message === "HTTP error Forbidden"
                   ) {
                     e = new Error(
-                      `The original file have been deleted. Will retry with '${codexURL}'.`,
+                      `The original file has been deleted. Will retry with '${codexURL}'.`,
                     );
                     fallback = true;
                     url = codexURL;

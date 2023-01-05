@@ -435,6 +435,7 @@ export interface WriteOptions {
   internalFileAttribute?: number;
   externalFileAttribute?: number;
   useCompressionStream?: boolean;
+  supportZip64SplitFile?: boolean;
 }
 
 export interface AddEntryOptions {
@@ -445,6 +446,7 @@ export interface AddEntryOptions {
 
 export interface CloseOptions {
   zip64?: boolean;
+  supportZip64SplitFile?: boolean;
   preventClose?: boolean;
 }
 
