@@ -44,8 +44,7 @@ export async function downloadFromB2(
   }
   const tempFile = await Deno.makeTempFile();
   try {
-    const { writable } = await Deno.create(tempFile);
-    await res.body!.pipeTo(writable);
+    await Deno.writeFile(tempFile, res.body ?? new Uint8Array());
     const date = new Date(remoteMtime);
     await Deno.utime(tempFile, date, date);
     await Deno.rename(tempFile, path);
