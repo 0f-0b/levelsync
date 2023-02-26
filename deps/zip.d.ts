@@ -1,7 +1,6 @@
 import type { Awaitable } from "../async.ts";
 
-type Simplify<T> = Omit<T, never>;
-type Merge<T, U> = Simplify<Omit<T, keyof U> & U>;
+type Merge<T, U> = Omit<T, keyof U> & U;
 
 export interface DeflateOptions {
   level?: number;
