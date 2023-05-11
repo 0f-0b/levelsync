@@ -179,7 +179,11 @@ try {
             }
             const tempDir = await Deno.makeTempDir();
             try {
-              (await Deno.create(resolve(tempDir, ".levelsync"))).close();
+              (await Deno.open(resolve(tempDir, ".levelsync"), {
+                write: true,
+                create: true,
+                truncate: true,
+              })).close();
               const zipReader = new ZipReader(
                 new HttpReader(url, { preventHeadRequest: true, signal }),
                 { signal },

@@ -352,6 +352,7 @@ export interface Entry {
 }
 
 export interface ReadOptions {
+  checkPasswordOnly?: boolean;
   checkSignature?: boolean;
   password?: string;
   useWebWorkers?: boolean;
@@ -379,9 +380,9 @@ type GetData<
 
 export interface ReadableEntry extends Entry {
   getData<T extends WritableWriterLike>(
-    writer: T,
+    writer: T | null,
     options?: EntryDataProgressEventHandler & ReadOptions,
-  ): Promise<GetData<WritableWriterFrom<T>>>;
+  ): Promise<GetData<WritableWriterFrom<T>> | undefined>;
 }
 
 export interface GetEntriesOptions {

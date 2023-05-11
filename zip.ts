@@ -13,7 +13,11 @@ export async function extractZipInto(
       throw new Error(`Invalid path '${entry.filename}'`);
     }
     const path = resolve(target, normalized);
-    const { writable } = await Deno.create(path);
+    const { writable } = await Deno.open(path, {
+      write: true,
+      create: true,
+      truncate: true,
+    });
     try {
       await entry.getData(writable);
     } catch (e: unknown) {
