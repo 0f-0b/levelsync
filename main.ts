@@ -10,7 +10,7 @@ import { signal } from "./interrupt_signal.ts";
 import { log } from "./log.ts";
 import { loadLevels, orchardURL } from "./orchard.ts";
 import { retry } from "./retry.ts";
-import { extractZipInto } from "./zip.ts";
+import { extractZipInto } from "./unzip.ts";
 
 const {
   options: { yeeted, database, concurrency, dryRun, orchard, codex },
