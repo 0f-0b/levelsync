@@ -1,1 +1,1 @@
-export * from "https://esm.sh/v120/@esfx/async-semaphore@1.0.0";
+export * from "https://esm.sh/v126/@esfx/async-semaphore@1.0.0?target=esnext";

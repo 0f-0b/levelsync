@@ -371,7 +371,7 @@ export interface EntryDataProgressEventHandler {
 type WritableWriterFrom<
   T extends WritableWriterLike,
 > = T extends DiskWriterIterator ? SplitDataWriter
-  : T extends WritableStream ? { writable: T }
+  : T extends WritableStream<never> ? { writable: T }
   : T;
 type GetData<
   T extends WritableWriter,
@@ -379,10 +379,12 @@ type GetData<
   : T["writable"];
 
 export interface ReadableEntry extends Entry {
-  getData<T extends WritableWriterLike>(
-    writer: T | null,
+  getData<T extends WritableWriterLike | null>(
+    writer: T,
     options?: EntryDataProgressEventHandler & ReadOptions,
-  ): Promise<GetData<WritableWriterFrom<T>> | undefined>;
+  ): Promise<
+    T extends WritableWriterLike ? GetData<WritableWriterFrom<T>> : undefined
+  >;
 }
 
 export interface GetEntriesOptions {

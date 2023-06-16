@@ -1,3 +1,4 @@
+import { makeArray } from "./array.ts";
 import { delay } from "./delay.ts";
 
 export interface RetryOptions {
@@ -44,8 +45,5 @@ export function createTimeouts(options?: CreateTimeoutsOptions): number[] {
   const initial = options?.initial ?? 1000;
   const factor = options?.factor ?? 2;
   const max = options?.max ?? Infinity;
-  return Array.from(
-    { length: retries },
-    (_, i) => Math.min(initial * factor ** i, max),
-  );
+  return makeArray(retries, (i) => Math.min(initial * factor ** i, max));
 }

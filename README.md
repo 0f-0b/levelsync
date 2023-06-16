@@ -74,10 +74,9 @@ cron:
 0 * * * * levelsync '/path/to/Rhythm Doctor/Levels'
 ```
 
-This program is pretty unstable and lacks a few key features compared to the
-[original levelsync](https://github.com/huantianad/levelsync). Therefore it is
-not recommended to use this program unless that one would not work for some
-reason.
+This program currently lacks a few key features compared to the
+[original levelsync](https://github.com/huantianad/levelsync), notably the
+ability to filter out unreviewed levels.
 
 ## See Also
 
