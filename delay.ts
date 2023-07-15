@@ -3,17 +3,21 @@ export interface DelayOptions {
 }
 
 export function delay(ms: number, options?: DelayOptions): Promise<undefined> {
-  const signal = options?.signal;
   return new Promise((resolve, reject) => {
-    signal?.throwIfAborted();
-    const abort = () => {
-      reject(signal!.reason);
+    const signal = options?.signal;
+    if (!signal) {
+      setTimeout(() => resolve(undefined), ms);
+      return;
+    }
+    signal.throwIfAborted();
+    const onAbort = () => {
+      reject(signal.reason);
       clearTimeout(id);
     };
     const id = setTimeout(() => {
       resolve(undefined);
-      signal?.removeEventListener("abort", abort);
+      signal.removeEventListener("abort", onAbort);
     }, ms);
-    signal?.addEventListener("abort", abort, { once: true });
+    signal.addEventListener("abort", onAbort, { once: true });
   });
 }

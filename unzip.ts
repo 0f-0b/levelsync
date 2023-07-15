@@ -26,5 +26,4 @@ export async function extractZipInto(
     }
     await Deno.utime(path, entry.lastModDate, entry.lastModDate);
   }
-  return;
 }
