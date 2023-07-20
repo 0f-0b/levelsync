@@ -1,5 +1,5 @@
 import { DB } from "./deps/sqlite.ts";
-import { assert } from "./deps/std/testing/asserts.ts";
+import { assert } from "./deps/std/assert/assert.ts";
 
 export const orchardURL =
   "https://f000.backblazeb2.com/file/rdsqlite/backups/orchard-main.db";
