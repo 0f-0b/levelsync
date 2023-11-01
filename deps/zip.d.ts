@@ -415,6 +415,10 @@ export class ZipReader {
   close(): Promise<undefined>;
 }
 
+export interface ZipWriterOptions {
+  usdz?: boolean;
+}
+
 export interface WriteOptions {
   zip64?: boolean;
   level?: number;
@@ -454,7 +458,10 @@ export interface CloseOptions {
 
 export class ZipWriter<T extends WritableWriterLike> {
   readonly hasCorruptedEntries?: boolean;
-  constructor(writer: T, options?: WriteOptions & CloseOptions);
+  constructor(
+    writer: T,
+    options?: ZipWriterOptions & WriteOptions & CloseOptions,
+  );
   add(
     name: string,
     reader: ReadableReaderLike | null,

@@ -6,6 +6,6 @@ Deno.addSignalListener("SIGINT", function abort() {
     Deno.addSignalListener("SIGINT", () => Deno.exit(0x82));
     Deno.removeSignalListener("SIGINT", abort);
   });
-  controller.abort(domException("Interrupted.", "AbortError"));
+  controller.abort(domException("Interrupted", "AbortError"));
 });
 export const signal = controller.signal;

@@ -1,1 +1,1 @@
-export * from "https://deno.land/x/sqlite@v3.7.2/mod.ts";
+export * from "https://deno.land/x/sqlite@v3.8/mod.ts";

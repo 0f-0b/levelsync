@@ -2,7 +2,7 @@
 
 import { Command, ValidationError } from "./deps/cliffy/command.ts";
 import { AsyncSemaphore } from "./deps/esfx/async_semaphore.ts";
-import { resolve } from "./deps/std/path.ts";
+import { resolve } from "./deps/std/path/resolve.ts";
 import { HttpReader, terminateWorkers, ZipReader } from "./deps/zip.ts";
 
 import { downloadFromB2 } from "./b2.ts";
@@ -191,7 +191,7 @@ try {
               try {
                 await extractZipInto(zipReader, tempDir);
               } finally {
-                zipReader.close();
+                await zipReader.close();
               }
               await Deno.rename(tempDir, resolve(output, id));
             } catch (e: unknown) {

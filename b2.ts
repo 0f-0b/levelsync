@@ -30,16 +30,16 @@ export interface DownloadOptions {
 export async function downloadFromB2(
   url: string,
   path: string,
-  { signal }: DownloadOptions = {},
+  options?: DownloadOptions,
 ): Promise<boolean> {
-  const res = await fetch(url, { signal });
+  const res = await fetch(url, { signal: options?.signal });
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
   }
   const remoteMtime = mtimeFromB2Headers(res.headers) ?? Infinity;
   const localMtime = mtimeFromFileInfo(await stat(path)) ?? -Infinity;
   if (remoteMtime <= localMtime) {
-    await res.body!.cancel();
+    await res.body?.cancel();
     return false;
   }
   const tempFile = await Deno.makeTempFile();
