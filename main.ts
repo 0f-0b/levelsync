@@ -5,7 +5,7 @@ import { AsyncSemaphore } from "./deps/esfx/async_semaphore.ts";
 import { resolve } from "./deps/std/path/resolve.ts";
 import { HttpReader, terminateWorkers, ZipReader } from "./deps/zip.ts";
 
-import { downloadFromB2 } from "./b2.ts";
+import { updateFromB2 } from "./b2.ts";
 import { signal } from "./interrupt_signal.ts";
 import { log } from "./log.ts";
 import { loadLevels, orchardURL } from "./orchard.ts";
@@ -94,7 +94,7 @@ try {
 addEventListener("unload", () => Deno.removeSync(lock));
 const toAdd = await (async () => {
   try {
-    await retry(() => downloadFromB2(orchard, database, { signal }), {
+    await retry(() => updateFromB2(orchard, database, { signal }), {
       onError: (e, n) => {
         if (n === 0) {
           throw e;
@@ -127,7 +127,7 @@ try {
   Deno.exit(3);
 }
 if (
-  toRemove.size >= 20 &&
+  !dryRun && toRemove.size >= 20 &&
   !confirm(`About to remove ${toRemove.size} levels. Continue?`)
 ) {
   log.warn(`Refusing to remove ${toRemove.size} levels.`);

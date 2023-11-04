@@ -23,14 +23,14 @@ function mtimeFromB2Headers(headers: Headers): number | undefined {
   return time;
 }
 
-export interface DownloadOptions {
+export interface UpdateFromB2Options {
   signal?: AbortSignal;
 }
 
-export async function downloadFromB2(
+export async function updateFromB2(
   url: string,
   path: string,
-  options?: DownloadOptions,
+  options?: UpdateFromB2Options,
 ): Promise<boolean> {
   const res = await fetch(url, { signal: options?.signal });
   if (!res.ok) {
