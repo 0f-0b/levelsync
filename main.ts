@@ -208,7 +208,8 @@ try {
             }
             if (
               !fallback && e instanceof Error &&
-              e.message === "HTTP error Forbidden"
+              (e.message === "HTTP error Forbidden" ||
+                e.message === "HTTP error Not Found")
             ) {
               e = new Error(
                 `The original file has been deleted. Will retry with '${codexURL}'.`,
