@@ -99,13 +99,13 @@ const toAdd = await (async () => {
         if (n === 0) {
           throw e;
         }
-        log.warn(`Cannot update level database (${n} retries left):`, e);
+        log.warn(`Cannot update level database (${n} retries left): ${e}`);
       },
       signal,
     });
     return loadLevels(database);
   } catch (e: unknown) {
-    log.error("Cannot update level database:", e);
+    log.error(`Cannot update level database: ${e}`);
     Deno.exit(3);
   }
 })();
@@ -123,7 +123,7 @@ try {
     }
   }
 } catch (e: unknown) {
-  log.error("Cannot read existing levels:", e);
+  log.error(`Cannot read existing levels: ${e}`);
   Deno.exit(3);
 }
 if (
@@ -147,7 +147,7 @@ for (const id of toRemove) {
       await Deno.remove(resolve(output, id), { recursive: true });
     }
   } catch (e: unknown) {
-    log.error(`Cannot remove ${id}:`, e);
+    log.error(`Cannot remove ${id}: ${e}`);
     error = true;
   }
 }
@@ -217,13 +217,13 @@ try {
               fallback = true;
               url = codexURL;
             }
-            log.warn(`Cannot download ${id} (${n} retries left):`, e);
+            log.warn(`Cannot download ${id} (${n} retries left): ${e}`);
           },
           signal,
         });
       } catch (e: unknown) {
         if (started) {
-          log.error(`Cannot download ${id}:`, e);
+          log.error(`Cannot download ${id}: ${e}`);
         }
         error = true;
       }

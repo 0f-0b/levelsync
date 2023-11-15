@@ -1,8 +1,8 @@
-import { bold, green, red, yellow } from "./deps/std/fmt/colors.ts";
-
 export const log = {
-  step: (tag: string, ...message: unknown[]) =>
-    console.log(green(tag), ...message),
-  warn: console.warn.bind(null, yellow("Warning")),
-  error: console.error.bind(null, `${bold(red("error"))}:`),
+  step: (tag: string, message: string) =>
+    console.log("%c%s%c", "color: green", tag, "", message),
+  warn: (message: string) =>
+    console.warn("%cWarning%c", "color: yellow", "", message),
+  error: (message: string) =>
+    console.error("%cerror%c:", "color: red; font-weight: bold", "", message),
 };
