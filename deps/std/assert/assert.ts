@@ -1,1 +1,1 @@
-export * from "https://deno.land/std@0.207.0/assert/assert.ts";
+export * from "jsr:@std/assert@^0.220.1/assert";

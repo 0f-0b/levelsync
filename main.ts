@@ -66,6 +66,16 @@ const {
     "Download levels from codex.rhythm.cafe.",
   )
   .arguments("<output:file>")
+  .error((error, cmd) => {
+    cmd.showHelp();
+    console.error(
+      "%cerror%c:",
+      "color: red; font-weight: bold",
+      "",
+      error.message,
+    );
+    Deno.exit(2);
+  })
   .parse();
 Deno.mkdirSync(output, { recursive: true });
 const lock = resolve(output, ".levelsync.lock");
@@ -230,7 +240,7 @@ try {
     }),
   );
 } finally {
-  terminateWorkers();
+  await terminateWorkers();
 }
 if (error) {
   Deno.exit(1);

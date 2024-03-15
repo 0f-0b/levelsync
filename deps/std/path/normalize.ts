@@ -1,1 +1,1 @@
-export * from "https://deno.land/std@0.207.0/path/normalize.ts";
+export * from "jsr:@std/path@^0.220.1/normalize";

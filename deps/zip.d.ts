@@ -61,7 +61,7 @@ export function initShimAsyncCodec<T extends EventBasedCodec, DO, IO>(
   Deflate: new (options?: DeflateOptions) => SyncCodec;
   Inflate: new (options?: InflateOptions) => SyncCodec;
 };
-export function terminateWorkers(): undefined;
+export function terminateWorkers(): Promise<undefined>;
 export function getMimeType(filename: string): string;
 
 export interface ReadableByteStream extends ReadableStream<Uint8Array> {
@@ -355,6 +355,7 @@ export interface ReadOptions {
   checkPasswordOnly?: boolean;
   checkSignature?: boolean;
   password?: string;
+  rawPassword?: Uint8Array;
   useWebWorkers?: boolean;
   useCompressionStream?: boolean;
   signal?: AbortSignal;
@@ -415,6 +416,16 @@ export class ZipReader {
   close(): Promise<undefined>;
 }
 
+export interface ReadableStreamEntry extends Entry {
+  readable: ReadableStream<Uint8Array>;
+}
+
+export class ZipReaderStream {
+  readonly readable: ReadableStream<ReadableStreamEntry>;
+  readonly writable: WritableStream<Uint8Array>;
+  constructor(options?: ReadOptions & GetEntriesOptions);
+}
+
 export interface ZipWriterOptions {
   usdz?: boolean;
 }
@@ -427,6 +438,7 @@ export interface WriteOptions {
   version?: number;
   versionMadeBy?: number;
   password?: string;
+  rawPassword?: Uint8Array;
   encryptionStrength?: number;
   zipCrypto?: boolean;
   useWebWorkers?: boolean;
@@ -471,6 +483,21 @@ export class ZipWriter<T extends WritableWriterLike> {
     comment?: Uint8Array,
     options?: EntryProgressEventHandler & CloseOptions,
   ): Promise<GetData<WritableWriterFrom<T>>>;
+}
+
+export class ZipWriterStream {
+  readonly readable: ReadableStream<Uint8Array>;
+  readonly zipWriter: ZipWriter<WritableStream<Uint8Array>>;
+  constructor(options?: ZipWriterOptions & WriteOptions & CloseOptions);
+  transform(path: string): {
+    readable: ReadableStream<Uint8Array>;
+    writable: WritableStream<Uint8Array>;
+  };
+  writable(path: string): WritableStream<Uint8Array>;
+  close(
+    comment?: Uint8Array,
+    options?: EntryProgressEventHandler & CloseOptions,
+  ): Promise<WritableStream<Uint8Array>>;
 }
 
 export const ERR_HTTP_RANGE: string;
