@@ -1,4 +1,11 @@
 {
+  "lint": {
+    "rules": {
+      "include": [
+        "verbatim-module-syntax"
+      ]
+    }
+  },
   "tasks": {
     "lint": "deno fmt --check && deno lint && deno check --all main.ts"
   }

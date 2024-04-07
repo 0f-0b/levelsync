@@ -171,6 +171,7 @@ export interface HttpRangeOptions
   extends Omit<RequestInit, "headers" | "body" | "method"> {
   preventHeadRequest?: boolean;
   forceRangeRequests?: boolean;
+  combineSizeEocd?: boolean;
   useXHR?: boolean;
   headers?: Iterable<[string, string]> | Record<string, string>;
 }

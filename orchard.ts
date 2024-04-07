@@ -12,7 +12,6 @@ export interface Level {
 export function loadLevels(path: string): Map<string, Level> {
   const db = new DB(path, { mode: "read" });
   try {
-    const levels = new Map<string, Level>();
     const query = db.prepareQuery(`
       select id, url, url2
       from level
@@ -20,6 +19,7 @@ export function loadLevels(path: string): Map<string, Level> {
       order by max(last_updated) desc
     `);
     try {
+      const levels = new Map<string, Level>();
       for (const [id, originalURL, codexURL] of query.iter()) {
         assert(typeof id === "string");
         assert(typeof originalURL === "string" || originalURL === null);
