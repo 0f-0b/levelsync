@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write --allow-net
+#!/usr/bin/env -S deno run --allow-import=deno.land:443,jsr.io:443 --allow-read --allow-write --allow-net
 
 import { Command, ValidationError } from "./deps/cliffy/command.ts";
 import { AsyncSemaphore } from "./deps/esfx/async_semaphore.ts";
@@ -30,13 +30,13 @@ const {
     return Number(value);
   })
   .type("url", ({ label, name, value }) => {
-    try {
-      return new URL(value).href;
-    } catch {
+    const parse = URL.parse(value);
+    if (!parse) {
       throw new ValidationError(
         `${label} "${name}" must be a URL, but got "${value}".`,
       );
     }
+    return parse.href;
   })
   .option(
     "-y, --yeeted <path:file>",

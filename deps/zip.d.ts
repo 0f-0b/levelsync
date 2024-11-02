@@ -3,12 +3,12 @@ import type { Awaitable } from "../async.ts";
 type Merge<T, U> = Omit<T, keyof U> & U;
 
 export interface DeflateOptions {
-  level?: number;
-  chunkSize?: number;
+  level?: number | undefined;
+  chunkSize?: number | undefined;
 }
 
 export interface InflateOptions {
-  chunkSize?: number;
+  chunkSize?: number | undefined;
 }
 
 export interface SyncCodec {
@@ -21,26 +21,24 @@ export interface EventBasedCodec {
 }
 
 export interface Configuration {
-  baseURL?: string;
-  chunkSize?: number;
-  maxWorkers?: number;
-  terminateWorkerTimeout?: number;
-  useWebWorkers?: boolean;
-  useCompressionStream?: boolean;
-  Deflate?: new (options: DeflateOptions) => SyncCodec;
-  Inflate?: new (options: InflateOptions) => SyncCodec;
-  CompressionStream?: new (
-    format: string,
-    options: DeflateOptions,
-  ) => CompressionStream;
-  DecompressionStream?: new (
-    format: string,
-    options: InflateOptions,
-  ) => DecompressionStream;
+  baseURL?: string | undefined;
+  chunkSize?: number | undefined;
+  maxWorkers?: number | undefined;
+  terminateWorkerTimeout?: number | undefined;
+  useWebWorkers?: boolean | undefined;
+  useCompressionStream?: boolean | undefined;
+  Deflate?: (new (options: DeflateOptions) => SyncCodec) | undefined;
+  Inflate?: (new (options: InflateOptions) => SyncCodec) | undefined;
+  CompressionStream?:
+    | (new (format: string, options: DeflateOptions) => CompressionStream)
+    | undefined;
+  DecompressionStream?:
+    | (new (format: string, options: InflateOptions) => DecompressionStream)
+    | undefined;
   workerScripts?: {
-    deflate?: string[];
-    inflate?: string[];
-  };
+    deflate?: string[] | undefined;
+    inflate?: string[] | undefined;
+  } | undefined;
 }
 
 export function configure(configuration: Configuration): undefined;
@@ -50,8 +48,8 @@ export function initShimAsyncCodec<T extends EventBasedCodec, DO, IO>(
     Inflate: new (options: Merge<IO, InflateOptions>) => T;
   },
   options: {
-    deflate?: DO;
-    inflate?: IO;
+    deflate?: DO | undefined;
+    inflate?: IO | undefined;
   } | undefined,
   registerDataHandler: (
     codec: T,
@@ -65,14 +63,14 @@ export function terminateWorkers(): Promise<undefined>;
 export function getMimeType(filename: string): string;
 
 export interface ReadableByteStream extends ReadableStream<Uint8Array> {
-  size?: number;
+  size?: number | undefined;
 }
 
 export interface ReadableReader {
   readonly readable: ReadableByteStream;
-  size?: number;
-  chunkSize?: number;
-  initialized?: boolean;
+  size?: number | undefined;
+  chunkSize?: number | undefined;
+  initialized?: boolean | undefined;
   init?(): unknown;
 }
 
@@ -82,13 +80,13 @@ export type ReadableReaderLike =
   | readonly Reader[];
 
 export interface SeekableReadableByteStream extends ReadableByteStream {
-  diskNumberStart?: number;
-  offset?: number;
+  diskNumberStart?: number | undefined;
+  offset?: number | undefined;
 }
 
 export interface SeekableReadableReader extends ReadableReader {
   readonly readable: SeekableReadableByteStream;
-  lastDiskNumber?: number;
+  lastDiskNumber?: number | undefined;
   size: number;
   readUint8Array(
     index: number,
@@ -98,18 +96,18 @@ export interface SeekableReadableReader extends ReadableReader {
 }
 
 export interface WritableByteStream extends WritableStream<Uint8Array> {
-  size?: number;
+  size?: number | undefined;
 }
 
 export interface WritableWriter {
   readonly writable: WritableByteStream;
-  diskNumber?: number;
-  diskOffset?: number;
-  availableSize?: number;
-  maxSize?: number;
-  initialized?: boolean;
-  init?(sizeHint?: number): unknown;
-  getData?(): unknown;
+  diskNumber?: number | undefined;
+  diskOffset?: number | undefined;
+  availableSize?: number | undefined;
+  maxSize?: number | undefined;
+  initialized?: boolean | undefined;
+  init?: ((this: this, sizeHint?: number) => unknown) | undefined;
+  getData?: ((this: this) => unknown) | undefined;
 }
 
 export type WritableWriterLike =
@@ -119,12 +117,12 @@ export type WritableWriterLike =
 
 declare class Stream {
   size: number;
-  initialized?: boolean;
+  initialized?: boolean | undefined;
   init(): Awaitable<undefined>;
 }
 
 export abstract class Reader extends Stream implements SeekableReadableReader {
-  chunkSize?: number;
+  chunkSize?: number | undefined;
   readonly readable: SeekableReadableByteStream;
   abstract readUint8Array(
     index: number,
@@ -158,7 +156,7 @@ export class Uint8ArrayReader extends Reader implements SeekableReadableReader {
 }
 
 export interface HttpOptions extends HttpRangeOptions {
-  useRangeHeader?: boolean;
+  useRangeHeader?: boolean | undefined;
 }
 
 export class HttpReader extends Reader implements SeekableReadableReader {
@@ -169,11 +167,11 @@ export class HttpReader extends Reader implements SeekableReadableReader {
 
 export interface HttpRangeOptions
   extends Omit<RequestInit, "headers" | "body" | "method"> {
-  preventHeadRequest?: boolean;
-  forceRangeRequests?: boolean;
-  combineSizeEocd?: boolean;
-  useXHR?: boolean;
-  headers?: Iterable<[string, string]> | Record<string, string>;
+  preventHeadRequest?: boolean | undefined;
+  forceRangeRequests?: boolean | undefined;
+  combineSizeEocd?: boolean | undefined;
+  useXHR?: boolean | undefined;
+  headers?: Iterable<[string, string]> | Record<string, string> | undefined;
 }
 
 export class HttpRangeReader extends Reader implements SeekableReadableReader {
@@ -183,7 +181,7 @@ export class HttpRangeReader extends Reader implements SeekableReadableReader {
 }
 
 export class SplitDataReader extends Reader implements SeekableReadableReader {
-  lastDiskNumber?: number;
+  lastDiskNumber?: number | undefined;
   constructor(readers: readonly Reader[]);
   override init(): Promise<undefined>;
   override readUint8Array(
@@ -232,9 +230,9 @@ export class Uint8ArrayWriter extends Writer implements WritableWriter {
 
 export interface DiskWriter {
   readonly writable: WritableByteStream;
-  size?: number;
-  maxSize?: number;
-  initialized?: boolean;
+  size?: number | undefined;
+  maxSize?: number | undefined;
+  initialized?: boolean | undefined;
   init?(): unknown;
 }
 
@@ -269,7 +267,6 @@ export interface ExtraField {
 }
 
 export interface ExtraFieldZip64 extends ExtraField {
-  values: number[];
   diskNumberStart?: number;
   offset?: number;
   compressedSize?: number;
@@ -323,28 +320,29 @@ export interface Entry {
   rawFilename: Uint8Array;
   filenameUTF8: boolean;
   directory: boolean;
-  encrypted: boolean;
+  encrypted: boolean | undefined;
+  zipCrypto: boolean | undefined;
   compressedSize: number;
   uncompressedSize: number;
   lastModDate: Date;
   rawLastModDate: number;
-  lastAccessDate?: Date;
-  creationDate?: Date;
+  lastAccessDate: Date | undefined;
+  creationDate: Date | undefined;
   comment: string;
   rawComment: Uint8Array;
   commentUTF8: boolean;
-  extraField?: Map<number, ExtraField>;
-  extraFieldZip64?: ExtraFieldZip64;
-  extraFieldUnicodePath?: ExtraFieldUnicodePath;
-  extraFieldUnicodeComment?: ExtraFieldUnicodeComment;
-  extraFieldAES?: ExtraFieldAES;
-  extraFieldNTFS?: ExtraFieldNTFS;
-  extraFieldExtendedTimestamp?: ExtraFieldExtendedTimestamp;
+  extraField: Map<number, ExtraField> | undefined;
+  extraFieldZip64: ExtraFieldZip64 | undefined;
+  extraFieldUnicodePath: ExtraFieldUnicodePath | undefined;
+  extraFieldUnicodeComment: ExtraFieldUnicodeComment | undefined;
+  extraFieldAES: ExtraFieldAES | undefined;
+  extraFieldNTFS: ExtraFieldNTFS | undefined;
+  extraFieldExtendedTimestamp: ExtraFieldExtendedTimestamp | undefined;
   rawExtraField: Uint8Array;
-  signature?: number;
-  zip64?: boolean;
   compressionMethod: number;
-  bitFlag?: BitFlag;
+  signature: number | undefined;
+  zip64: boolean;
+  bitFlag: BitFlag | undefined;
   version: number;
   versionMadeBy: number;
   msDosCompatible: boolean;
@@ -353,21 +351,22 @@ export interface Entry {
 }
 
 export interface ReadOptions {
-  checkPasswordOnly?: boolean;
-  checkSignature?: boolean;
-  password?: string;
-  rawPassword?: Uint8Array;
-  useWebWorkers?: boolean;
-  useCompressionStream?: boolean;
-  signal?: AbortSignal;
-  preventClose?: boolean;
-  transferStreams?: boolean;
+  passThrough?: boolean | undefined;
+  checkPasswordOnly?: boolean | undefined;
+  checkSignature?: boolean | undefined;
+  password?: string | undefined;
+  rawPassword?: Uint8Array | undefined;
+  useWebWorkers?: boolean | undefined;
+  useCompressionStream?: boolean | undefined;
+  signal?: AbortSignal | undefined;
+  preventClose?: boolean | undefined;
+  transferStreams?: boolean | undefined;
 }
 
 export interface EntryDataProgressEventHandler {
-  onstart?: (total: number) => unknown;
-  onprogress?: (progress: number, total: number) => unknown;
-  onend?: (computedSize: number) => unknown;
+  onstart?: ((total: number) => unknown) | undefined;
+  onprogress?: ((progress: number, total: number) => unknown) | undefined;
+  onend?: ((computedSize: number) => unknown) | undefined;
 }
 
 type WritableWriterFrom<
@@ -390,14 +389,19 @@ export interface ReadableEntry extends Entry {
 }
 
 export interface GetEntriesOptions {
-  filenameEncoding?: string;
-  commentEncoding?: string;
-  extractPrependedData?: boolean;
-  extractAppendedData?: boolean;
+  filenameEncoding?: string | undefined;
+  commentEncoding?: string | undefined;
+  decodeText?:
+    | ((value: Uint8Array, encoding: string) => string | undefined)
+    | undefined;
+  extractPrependedData?: boolean | undefined;
+  extractAppendedData?: boolean | undefined;
 }
 
 export interface EntryProgressEventHandler {
-  onprogress?: (progress: number, total: number, entry: Entry) => unknown;
+  onprogress?:
+    | ((progress: number, total: number, entry: Entry) => unknown)
+    | undefined;
 }
 
 export class ZipReader {
@@ -428,45 +432,53 @@ export class ZipReaderStream {
 }
 
 export interface ZipWriterOptions {
-  usdz?: boolean;
+  usdz?: boolean | undefined;
+  offset?: number | undefined;
 }
 
 export interface WriteOptions {
-  zip64?: boolean;
-  level?: number;
-  bufferedWrite?: boolean;
-  keepOrder?: boolean;
-  version?: number;
-  versionMadeBy?: number;
-  password?: string;
-  rawPassword?: Uint8Array;
-  encryptionStrength?: number;
-  zipCrypto?: boolean;
-  useWebWorkers?: boolean;
-  dataDescriptor?: boolean;
-  dataDescriptorSignature?: boolean;
-  signal?: AbortSignal;
-  lastModDate?: Date;
-  lastAccessDate?: Date;
-  creationDate?: Date;
-  extendedTimestamp?: boolean;
-  msDosCompatible?: boolean;
-  internalFileAttribute?: number;
-  externalFileAttribute?: number;
-  useCompressionStream?: boolean;
-  supportZip64SplitFile?: boolean;
+  zip64?: boolean | undefined;
+  level?: number | undefined;
+  bufferedWrite?: boolean | undefined;
+  keepOrder?: boolean | undefined;
+  encodeText?: ((text: string) => Uint8Array | undefined) | undefined;
+  version?: number | undefined;
+  versionMadeBy?: number | undefined;
+  passThrough?: boolean | undefined;
+  password?: string | undefined;
+  rawPassword?: Uint8Array | undefined;
+  encrypted?: boolean | undefined;
+  encryptionStrength?: number | undefined;
+  zipCrypto?: boolean | undefined;
+  useWebWorkers?: boolean | undefined;
+  useUnicodeFileNames?: boolean | undefined;
+  dataDescriptor?: boolean | undefined;
+  dataDescriptorSignature?: boolean | undefined;
+  compressionMethod?: number | undefined;
+  signal?: AbortSignal | undefined;
+  lastModDate?: Date | undefined;
+  lastAccessDate?: Date | undefined;
+  creationDate?: Date | undefined;
+  extendedTimestamp?: boolean | undefined;
+  msDosCompatible?: boolean | undefined;
+  internalFileAttribute?: number | undefined;
+  externalFileAttribute?: number | undefined;
+  useCompressionStream?: boolean | undefined;
+  supportZip64SplitFile?: boolean | undefined;
 }
 
 export interface AddEntryOptions {
-  directory?: boolean;
-  comment?: string;
-  extraField?: Map<number, Uint8Array>;
+  directory?: boolean | undefined;
+  comment?: string | undefined;
+  extraField?: Map<number, Uint8Array> | undefined;
+  uncompressedSize?: number | undefined;
+  signature?: number | undefined;
 }
 
 export interface CloseOptions {
-  zip64?: boolean;
-  supportZip64SplitFile?: boolean;
-  preventClose?: boolean;
+  zip64?: boolean | undefined;
+  supportZip64SplitFile?: boolean | undefined;
+  preventClose?: boolean | undefined;
 }
 
 export class ZipWriter<T extends WritableWriterLike> {
@@ -504,7 +516,6 @@ export class ZipWriterStream {
 export const ERR_HTTP_RANGE: string;
 export const ERR_BAD_FORMAT: string;
 export const ERR_EOCDR_NOT_FOUND: string;
-export const ERR_EOCDR_ZIP64_NOT_FOUND: string;
 export const ERR_EOCDR_LOCATOR_ZIP64_NOT_FOUND: string;
 export const ERR_CENTRAL_DIRECTORY_NOT_FOUND: string;
 export const ERR_LOCAL_FILE_HEADER_NOT_FOUND: string;
@@ -525,3 +536,4 @@ export const ERR_INVALID_ENCRYPTION_STRENGTH: string;
 export const ERR_UNSUPPORTED_FORMAT: string;
 export const ERR_SPLIT_ZIP_FILE: string;
 export const ERR_ITERATOR_COMPLETED_TOO_SOON: string;
+export const ERR_UNDEFINED_UNCOMPRESSED_SIZE: string;

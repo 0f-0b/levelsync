@@ -1,4 +1,6 @@
-async function stat(path: string): Promise<Deno.FileInfo | null> {
+import { dirname } from "./deps/std/path/dirname.ts";
+
+async function tryStat(path: string): Promise<Deno.FileInfo | null> {
   try {
     return await Deno.stat(path);
   } catch {
@@ -37,12 +39,12 @@ export async function updateFromB2(
     throw new Error(`HTTP ${res.status}`);
   }
   const remoteMtime = mtimeFromB2Headers(res.headers) ?? Infinity;
-  const localMtime = mtimeFromFileInfo(await stat(path)) ?? -Infinity;
+  const localMtime = mtimeFromFileInfo(await tryStat(path)) ?? -Infinity;
   if (remoteMtime <= localMtime) {
     await res.body?.cancel();
     return false;
   }
-  const tempFile = await Deno.makeTempFile();
+  const tempFile = await Deno.makeTempFile({ dir: dirname(path) });
   try {
     await Deno.writeFile(tempFile, res.body ?? new Uint8Array());
     const date = new Date(remoteMtime);

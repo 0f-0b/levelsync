@@ -7,6 +7,7 @@
     }
   },
   "tasks": {
-    "lint": "deno fmt --check && deno lint && deno check --all main.ts"
+    "cache": "deno cache --allow-import=deno.land:443,jsr.io:443 main.ts",
+    "lint": "deno fmt --check && deno lint && deno check --all --allow-import=deno.land:443,jsr.io:443 main.ts"
   }
 }

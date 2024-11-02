@@ -1,1 +1,1 @@
-export * from "jsr:@std/path@^0.222.1/normalize";
+export * from "jsr:@std/path@^1.0.0/normalize";
