@@ -1,5 +1,5 @@
+import { join } from "./deps/std/path/join.ts";
 import { normalize } from "./deps/std/path/normalize.ts";
-import { resolve } from "./deps/std/path/resolve.ts";
 import type { ZipReader } from "./deps/zip.ts";
 
 const invalidPathRE = /:|^(?:\.\.)?(?:[/\\]|$)/;
@@ -13,7 +13,7 @@ export async function extractZipInto(
     if (invalidPathRE.test(normalized)) {
       throw new Error(`Invalid path '${entry.filename}'`);
     }
-    const path = resolve(target, normalized);
+    const path = join(target, normalized);
     const { writable } = await Deno.open(path, {
       write: true,
       create: true,

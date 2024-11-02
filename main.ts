@@ -2,7 +2,7 @@
 
 import { Command, ValidationError } from "./deps/cliffy/command.ts";
 import { AsyncSemaphore } from "./deps/esfx/async_semaphore.ts";
-import { resolve } from "./deps/std/path/resolve.ts";
+import { join } from "./deps/std/path/join.ts";
 import { HttpReader, terminateWorkers, ZipReader } from "./deps/zip.ts";
 
 import { updateFromB2 } from "./b2.ts";
@@ -78,7 +78,7 @@ const {
   })
   .parse();
 Deno.mkdirSync(output, { recursive: true });
-const lock = resolve(output, ".levelsync.lock");
+const lock = join(output, ".levelsync.lock");
 try {
   Deno.writeTextFileSync(lock, `${Deno.pid}`, { createNew: true });
 } catch (e: unknown) {
@@ -124,7 +124,7 @@ let error = false;
 try {
   for await (const { name: id } of Deno.readDir(output)) {
     try {
-      await Deno.stat(resolve(output, id, ".levelsync"));
+      await Deno.stat(join(output, id, ".levelsync"));
     } catch {
       continue;
     }
@@ -151,10 +151,10 @@ for (const id of toRemove) {
   try {
     if (yeeted !== undefined) {
       await Deno.mkdir(yeeted, { recursive: true });
-      await Deno.remove(resolve(output, id, ".levelsync"));
-      await Deno.rename(resolve(output, id), resolve(yeeted, id));
+      await Deno.remove(join(output, id, ".levelsync"));
+      await Deno.rename(join(output, id), join(yeeted, id));
     } else {
-      await Deno.remove(resolve(output, id), { recursive: true });
+      await Deno.remove(join(output, id), { recursive: true });
     }
   } catch (e: unknown) {
     log.error(`Cannot remove ${id}: ${e}`);
@@ -165,6 +165,10 @@ const semaphore = new AsyncSemaphore(concurrency);
 try {
   await Promise.all(
     Array.from(toAdd, async ([id, { originalURL, codexURL }]) => {
+      if (/[/\\]|^\.{0,2}$/.test(id)) {
+        log.warn(`Invalid level ID ${id}.`);
+        return;
+      }
       let fallback: boolean;
       let url: string;
       if (codex || originalURL === null) {
@@ -187,9 +191,9 @@ try {
             if (dryRun) {
               return;
             }
-            const tempDir = await Deno.makeTempDir();
+            const tempDir = await Deno.makeTempDir({ dir: output, prefix: id });
             try {
-              (await Deno.open(resolve(tempDir, ".levelsync"), {
+              (await Deno.open(join(tempDir, ".levelsync"), {
                 write: true,
                 create: true,
                 truncate: true,
@@ -203,7 +207,7 @@ try {
               } finally {
                 await zipReader.close();
               }
-              await Deno.rename(tempDir, resolve(output, id));
+              await Deno.rename(tempDir, join(output, id));
             } catch (e: unknown) {
               await Deno.remove(tempDir, { recursive: true });
               throw e;
