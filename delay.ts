@@ -6,7 +6,7 @@ export function delay(ms: number, options?: DelayOptions): Promise<undefined> {
   return new Promise((resolve, reject) => {
     const signal = options?.signal;
     if (!signal) {
-      setTimeout(() => resolve(undefined), ms);
+      setTimeout(resolve, ms);
       return;
     }
     signal.throwIfAborted();
