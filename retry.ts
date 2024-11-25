@@ -20,7 +20,7 @@ export async function retry<T>(
     signal?.throwIfAborted();
     try {
       return await fn(i);
-    } catch (e: unknown) {
+    } catch (e) {
       signal?.throwIfAborted();
       onError?.(e, maxRetries - i);
       errors.push(e);

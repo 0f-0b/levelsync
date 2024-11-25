@@ -21,7 +21,7 @@ export async function extractZipInto(
     });
     try {
       await entry.getData(writable);
-    } catch (e: unknown) {
+    } catch (e) {
       await writable.close();
       throw e;
     }

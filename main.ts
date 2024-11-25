@@ -81,7 +81,7 @@ Deno.mkdirSync(output, { recursive: true });
 const lock = join(output, ".levelsync.lock");
 try {
   Deno.writeTextFileSync(lock, `${Deno.pid}`, { createNew: true });
-} catch (e: unknown) {
+} catch (e) {
   if (!(e instanceof Deno.errors.AlreadyExists)) {
     throw e;
   }
@@ -114,7 +114,7 @@ const toAdd = await (async () => {
       signal,
     });
     return loadLevels(database);
-  } catch (e: unknown) {
+  } catch (e) {
     log.error(`Cannot update level database: ${e}`);
     Deno.exit(3);
   }
@@ -132,7 +132,7 @@ try {
       toRemove.add(id);
     }
   }
-} catch (e: unknown) {
+} catch (e) {
   log.error(`Cannot read existing levels: ${e}`);
   Deno.exit(3);
 }
@@ -156,7 +156,7 @@ for (const id of toRemove) {
     } else {
       await Deno.remove(join(output, id), { recursive: true });
     }
-  } catch (e: unknown) {
+  } catch (e) {
     log.error(`Cannot remove ${id}: ${e}`);
     error = true;
   }
@@ -208,7 +208,7 @@ try {
                 await zipReader.close();
               }
               await Deno.rename(tempDir, join(output, id));
-            } catch (e: unknown) {
+            } catch (e) {
               await Deno.remove(tempDir, { recursive: true });
               throw e;
             }
@@ -235,7 +235,7 @@ try {
           },
           signal,
         });
-      } catch (e: unknown) {
+      } catch (e) {
         if (started) {
           log.error(`Cannot download ${id}: ${e}`);
         }
