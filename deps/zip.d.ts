@@ -12,12 +12,12 @@ export interface InflateOptions {
 }
 
 export interface SyncCodec {
-  append(data: Uint8Array): Uint8Array;
-  flush(): Uint8Array | undefined;
+  append(data: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer>;
+  flush(): Uint8Array<ArrayBuffer> | undefined;
 }
 
 export interface EventBasedCodec {
-  push(data: Uint8Array, finalChunk?: boolean): unknown;
+  push(data: Uint8Array<ArrayBuffer>, finalChunk?: boolean): unknown;
 }
 
 export interface Configuration {
@@ -62,7 +62,8 @@ export function initShimAsyncCodec<T extends EventBasedCodec, DO, IO>(
 export function terminateWorkers(): Promise<undefined>;
 export function getMimeType(filename: string): string;
 
-export interface ReadableByteStream extends ReadableStream<Uint8Array> {
+export interface ReadableByteStream
+  extends ReadableStream<Uint8Array<ArrayBuffer>> {
   size?: number | undefined;
 }
 
@@ -92,10 +93,11 @@ export interface SeekableReadableReader extends ReadableReader {
     index: number,
     length: number,
     diskNumber?: number,
-  ): Awaitable<Uint8Array>;
+  ): Awaitable<Uint8Array<ArrayBuffer>>;
 }
 
-export interface WritableByteStream extends WritableStream<Uint8Array> {
+export interface WritableByteStream
+  extends WritableStream<Uint8Array<ArrayBuffer>> {
   size?: number | undefined;
 }
 
@@ -128,31 +130,43 @@ export abstract class Reader extends Stream implements SeekableReadableReader {
     index: number,
     length: number,
     diskNumber?: number,
-  ): Awaitable<Uint8Array>;
+  ): Awaitable<Uint8Array<ArrayBuffer>>;
 }
 
 export class TextReader extends Reader implements SeekableReadableReader {
   constructor(text: string);
   override init(): undefined;
-  override readUint8Array(index: number, length: number): Promise<Uint8Array>;
+  override readUint8Array(
+    index: number,
+    length: number,
+  ): Promise<Uint8Array<ArrayBuffer>>;
 }
 
 export class BlobReader extends Reader implements SeekableReadableReader {
   constructor(blob: Blob);
   override init(): undefined;
-  override readUint8Array(index: number, length: number): Promise<Uint8Array>;
+  override readUint8Array(
+    index: number,
+    length: number,
+  ): Promise<Uint8Array<ArrayBuffer>>;
 }
 
 export class Data64URIReader extends Reader implements SeekableReadableReader {
   constructor(dataURI: string);
   override init(): undefined;
-  override readUint8Array(index: number, length: number): Uint8Array;
+  override readUint8Array(
+    index: number,
+    length: number,
+  ): Uint8Array<ArrayBuffer>;
 }
 
 export class Uint8ArrayReader extends Reader implements SeekableReadableReader {
   constructor(array: Uint8Array);
   override init(): undefined;
-  override readUint8Array(index: number, length: number): Uint8Array;
+  override readUint8Array(
+    index: number,
+    length: number,
+  ): Uint8Array<ArrayBuffer>;
 }
 
 export interface HttpOptions extends HttpRangeOptions {
@@ -162,7 +176,10 @@ export interface HttpOptions extends HttpRangeOptions {
 export class HttpReader extends Reader implements SeekableReadableReader {
   constructor(url: string, options?: HttpOptions);
   override init(): Promise<undefined>;
-  override readUint8Array(index: number, length: number): Promise<Uint8Array>;
+  override readUint8Array(
+    index: number,
+    length: number,
+  ): Promise<Uint8Array<ArrayBuffer>>;
 }
 
 export interface HttpRangeOptions
@@ -177,7 +194,10 @@ export interface HttpRangeOptions
 export class HttpRangeReader extends Reader implements SeekableReadableReader {
   constructor(url: string, options?: HttpRangeOptions);
   override init(): Promise<undefined>;
-  override readUint8Array(index: number, length: number): Promise<Uint8Array>;
+  override readUint8Array(
+    index: number,
+    length: number,
+  ): Promise<Uint8Array<ArrayBuffer>>;
 }
 
 export class SplitDataReader extends Reader implements SeekableReadableReader {
@@ -188,7 +208,7 @@ export class SplitDataReader extends Reader implements SeekableReadableReader {
     index: number,
     length: number,
     diskNumber?: number,
-  ): Promise<Uint8Array>;
+  ): Promise<Uint8Array<ArrayBuffer>>;
 }
 
 /** @deprecated */
@@ -198,13 +218,13 @@ export type SplitZipReader = SplitDataReader;
 
 export abstract class Writer extends Stream implements WritableWriter {
   readonly writable: WritableByteStream;
-  writeUint8Array(array: Uint8Array): Awaitable<undefined>;
+  writeUint8Array(array: Uint8Array<ArrayBuffer>): Awaitable<undefined>;
 }
 
 export class TextWriter extends Writer implements WritableWriter {
   constructor(encoding?: string);
   override init(): undefined;
-  override writeUint8Array(array: Uint8Array): undefined;
+  override writeUint8Array(array: Uint8Array<ArrayBuffer>): undefined;
   getData(): Promise<string>;
 }
 
@@ -218,14 +238,14 @@ export class BlobWriter extends Stream implements WritableWriter {
 export class Data64URIWriter extends Writer implements WritableWriter {
   constructor(contentType?: string);
   override init(): undefined;
-  override writeUint8Array(array: Uint8Array): undefined;
+  override writeUint8Array(array: Uint8Array<ArrayBuffer>): undefined;
   getData(): string;
 }
 
 export class Uint8ArrayWriter extends Writer implements WritableWriter {
   override init(sizeHint?: number): undefined;
-  override writeUint8Array(array: Uint8Array): undefined;
-  getData(): Uint8Array;
+  override writeUint8Array(array: Uint8Array<ArrayBuffer>): undefined;
+  getData(): Uint8Array<ArrayBuffer>;
 }
 
 export interface DiskWriter {
@@ -263,7 +283,7 @@ export interface BitFlag {
 
 export interface ExtraField {
   type: number;
-  data: Uint8Array;
+  data: Uint8Array<ArrayBuffer>;
 }
 
 export interface ExtraFieldZip64 extends ExtraField {
@@ -317,9 +337,10 @@ export interface Entry {
   diskNumberStart: number;
   offset: number;
   filename: string;
-  rawFilename: Uint8Array;
+  rawFilename: Uint8Array<ArrayBuffer>;
   filenameUTF8: boolean;
   directory: boolean;
+  executable: boolean;
   encrypted: boolean | undefined;
   zipCrypto: boolean | undefined;
   compressedSize: number;
@@ -329,7 +350,7 @@ export interface Entry {
   lastAccessDate: Date | undefined;
   creationDate: Date | undefined;
   comment: string;
-  rawComment: Uint8Array;
+  rawComment: Uint8Array<ArrayBuffer>;
   commentUTF8: boolean;
   extraField: Map<number, ExtraField> | undefined;
   extraFieldZip64: ExtraFieldZip64 | undefined;
@@ -338,7 +359,7 @@ export interface Entry {
   extraFieldAES: ExtraFieldAES | undefined;
   extraFieldNTFS: ExtraFieldNTFS | undefined;
   extraFieldExtendedTimestamp: ExtraFieldExtendedTimestamp | undefined;
-  rawExtraField: Uint8Array;
+  rawExtraField: Uint8Array<ArrayBuffer>;
   compressionMethod: number;
   signature: number | undefined;
   zip64: boolean;
@@ -346,8 +367,12 @@ export interface Entry {
   version: number;
   versionMadeBy: number;
   msDosCompatible: boolean;
+  /** @deprecated */
   internalFileAttribute: number;
+  internalFileAttributes: number;
+  /** @deprecated */
   externalFileAttribute: number;
+  externalFileAttributes: number;
 }
 
 export interface ReadOptions {
@@ -355,7 +380,7 @@ export interface ReadOptions {
   checkPasswordOnly?: boolean | undefined;
   checkSignature?: boolean | undefined;
   password?: string | undefined;
-  rawPassword?: Uint8Array | undefined;
+  rawPassword?: Uint8Array<ArrayBuffer> | undefined;
   useWebWorkers?: boolean | undefined;
   useCompressionStream?: boolean | undefined;
   signal?: AbortSignal | undefined;
@@ -392,7 +417,7 @@ export interface GetEntriesOptions {
   filenameEncoding?: string | undefined;
   commentEncoding?: string | undefined;
   decodeText?:
-    | ((value: Uint8Array, encoding: string) => string | undefined)
+    | ((value: Uint8Array<ArrayBuffer>, encoding: string) => string | undefined)
     | undefined;
   extractPrependedData?: boolean | undefined;
   extractAppendedData?: boolean | undefined;
@@ -405,9 +430,9 @@ export interface EntryProgressEventHandler {
 }
 
 export class ZipReader {
-  readonly comment?: Uint8Array;
-  readonly prependedData?: Uint8Array;
-  readonly appendedData?: Uint8Array;
+  readonly comment?: Uint8Array<ArrayBuffer>;
+  readonly prependedData?: Uint8Array<ArrayBuffer>;
+  readonly appendedData?: Uint8Array<ArrayBuffer>;
   constructor(
     reader: ReadableReaderLike,
     options?: ReadOptions & GetEntriesOptions,
@@ -422,12 +447,12 @@ export class ZipReader {
 }
 
 export interface ReadableStreamEntry extends Entry {
-  readable: ReadableStream<Uint8Array>;
+  readable: ReadableStream<Uint8Array<ArrayBuffer>>;
 }
 
 export class ZipReaderStream {
   readonly readable: ReadableStream<ReadableStreamEntry>;
-  readonly writable: WritableStream<Uint8Array>;
+  readonly writable: WritableStream<Uint8Array<ArrayBuffer>>;
   constructor(options?: ReadOptions & GetEntriesOptions);
 }
 
@@ -441,12 +466,14 @@ export interface WriteOptions {
   level?: number | undefined;
   bufferedWrite?: boolean | undefined;
   keepOrder?: boolean | undefined;
-  encodeText?: ((text: string) => Uint8Array | undefined) | undefined;
+  encodeText?:
+    | ((text: string) => Uint8Array<ArrayBuffer> | undefined)
+    | undefined;
   version?: number | undefined;
   versionMadeBy?: number | undefined;
   passThrough?: boolean | undefined;
   password?: string | undefined;
-  rawPassword?: Uint8Array | undefined;
+  rawPassword?: Uint8Array<ArrayBuffer> | undefined;
   encrypted?: boolean | undefined;
   encryptionStrength?: number | undefined;
   zipCrypto?: boolean | undefined;
@@ -461,16 +488,21 @@ export interface WriteOptions {
   creationDate?: Date | undefined;
   extendedTimestamp?: boolean | undefined;
   msDosCompatible?: boolean | undefined;
+  /** @deprecated */
   internalFileAttribute?: number | undefined;
+  internalFileAttributes?: number | undefined;
+  /** @deprecated */
   externalFileAttribute?: number | undefined;
+  externalFileAttributes?: number | undefined;
   useCompressionStream?: boolean | undefined;
   supportZip64SplitFile?: boolean | undefined;
 }
 
 export interface AddEntryOptions {
   directory?: boolean | undefined;
+  executable?: boolean | undefined;
   comment?: string | undefined;
-  extraField?: Map<number, Uint8Array> | undefined;
+  extraField?: Map<number, Uint8Array<ArrayBuffer>> | undefined;
   uncompressedSize?: number | undefined;
   signature?: number | undefined;
 }
@@ -493,24 +525,24 @@ export class ZipWriter<T extends WritableWriterLike> {
     options?: EntryDataProgressEventHandler & WriteOptions & AddEntryOptions,
   ): Promise<Entry>;
   close(
-    comment?: Uint8Array,
+    comment?: Uint8Array<ArrayBuffer>,
     options?: EntryProgressEventHandler & CloseOptions,
   ): Promise<GetData<WritableWriterFrom<T>>>;
 }
 
 export class ZipWriterStream {
-  readonly readable: ReadableStream<Uint8Array>;
-  readonly zipWriter: ZipWriter<WritableStream<Uint8Array>>;
+  readonly readable: ReadableStream<Uint8Array<ArrayBuffer>>;
+  readonly zipWriter: ZipWriter<WritableStream<Uint8Array<ArrayBuffer>>>;
   constructor(options?: ZipWriterOptions & WriteOptions & CloseOptions);
   transform(path: string): {
-    readable: ReadableStream<Uint8Array>;
-    writable: WritableStream<Uint8Array>;
+    readable: ReadableStream<Uint8Array<ArrayBuffer>>;
+    writable: WritableStream<Uint8Array<ArrayBuffer>>;
   };
-  writable(path: string): WritableStream<Uint8Array>;
+  writable(path: string): WritableStream<Uint8Array<ArrayBuffer>>;
   close(
-    comment?: Uint8Array,
+    comment?: Uint8Array<ArrayBuffer>,
     options?: EntryProgressEventHandler & CloseOptions,
-  ): Promise<WritableStream<Uint8Array>>;
+  ): Promise<WritableStream<Uint8Array<ArrayBuffer>>>;
 }
 
 export const ERR_HTTP_RANGE: string;

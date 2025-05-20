@@ -1,2 +1,2 @@
 // @ts-types="./zip.d.ts"
-export * from "https://deno.land/x/zipjs@v2.7.53/lib/zip.js";
+export * from "https://jsr.io/@zip-js/zip-js/2.7.62/lib/zip.js";
