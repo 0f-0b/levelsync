@@ -12,7 +12,7 @@ Make sure you
 and then run the following in a terminal:
 
 ```shell
-deno install -fr --allow-read --allow-write --allow-net https://cdn.jsdelivr.net/gh/0f-0b/levelsync@main/main.ts
+deno install -fgr --allow-read --allow-write --allow-net https://cdn.jsdelivr.net/gh/0f-0b/levelsync@main/main.ts
 ```
 
 ## Synopsis
