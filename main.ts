@@ -161,11 +161,13 @@ for (const id of toRemove) {
     error = true;
   }
 }
+// deno-lint-ignore no-control-regex
+const invalidFilenameRE = /[\0-\x1f"*:<>?|/\\]|^\.{0,2}$/;
 const semaphore = new AsyncSemaphore(concurrency);
 try {
   await Promise.all(
     Array.from(toAdd, async ([id, { originalURL, codexURL }]) => {
-      if (/[/\\]|^\.{0,2}$/.test(id)) {
+      if (invalidFilenameRE.test(id)) {
         log.warn(`Invalid level ID ${id}.`);
         return;
       }
@@ -206,6 +208,9 @@ try {
                 await extractZipInto(zipReader, tempDir);
               } finally {
                 await zipReader.close();
+              }
+              if (Deno.build.os !== "windows") {
+                await Deno.chmod(tempDir, 0o755);
               }
               await Deno.rename(tempDir, join(output, id));
             } catch (e) {
