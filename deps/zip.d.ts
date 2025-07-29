@@ -97,9 +97,7 @@ export interface SeekableReadableReader extends ReadableReader {
 }
 
 export interface WritableByteStream
-  extends WritableStream<Uint8Array<ArrayBuffer>> {
-  size?: number | undefined;
-}
+  extends WritableStream<Uint8Array<ArrayBuffer>> {}
 
 export interface WritableWriter {
   readonly writable: WritableByteStream;
@@ -107,6 +105,7 @@ export interface WritableWriter {
   diskOffset?: number | undefined;
   availableSize?: number | undefined;
   maxSize?: number | undefined;
+  size?: number | undefined;
   initialized?: boolean | undefined;
   init?: ((this: this, sizeHint?: number) => unknown) | undefined;
   getData?: ((this: this) => unknown) | undefined;
@@ -274,6 +273,18 @@ export class SplitDataWriter extends Stream implements WritableWriter {
 export const SplitZipWriter: typeof SplitDataWriter;
 /** @deprecated */
 export type SplitZipWriter = SplitDataWriter;
+export const GenericReader: new (reader: ReadableReaderLike) => ReadableReader;
+export const GenericWriter: new (writer: WritableWriterLike) => WritableWriter;
+export function initStream(
+  stream: Stream,
+  sizeHint?: number,
+): Promise<undefined>;
+export function readUint8Array(
+  reader: Reader,
+  index: number,
+  length: number,
+  diskNumber?: number,
+): Awaitable<Uint8Array<ArrayBuffer>>;
 
 export interface BitFlag {
   level: number;
@@ -411,6 +422,9 @@ export interface ReadableEntry extends Entry {
   ): Promise<
     T extends WritableWriterLike ? GetData<WritableWriterFrom<T>> : undefined
   >;
+  arrayBuffer(
+    options?: EntryDataProgressEventHandler & ReadOptions,
+  ): Promise<ArrayBuffer>;
 }
 
 export interface GetEntriesOptions {
@@ -519,11 +533,13 @@ export class ZipWriter<T extends WritableWriterLike> {
     writer: T,
     options?: ZipWriterOptions & WriteOptions & CloseOptions,
   );
+  prependZip(reader: ReadableReaderLike): Promise<undefined>;
   add(
     name: string,
     reader: ReadableReaderLike | null,
     options?: EntryDataProgressEventHandler & WriteOptions & AddEntryOptions,
   ): Promise<Entry>;
+  remove(entry: string | Entry): boolean;
   close(
     comment?: Uint8Array<ArrayBuffer>,
     options?: EntryProgressEventHandler & CloseOptions,
@@ -546,6 +562,8 @@ export class ZipWriterStream {
 }
 
 export const ERR_HTTP_RANGE: string;
+export const ERR_ITERATOR_COMPLETED_TOO_SOON: string;
+export const ERR_WRITER_NOT_INITIALIZED: string;
 export const ERR_BAD_FORMAT: string;
 export const ERR_EOCDR_NOT_FOUND: string;
 export const ERR_EOCDR_LOCATOR_ZIP64_NOT_FOUND: string;
@@ -557,6 +575,8 @@ export const ERR_UNSUPPORTED_ENCRYPTION: string;
 export const ERR_UNSUPPORTED_COMPRESSION: string;
 export const ERR_INVALID_SIGNATURE: string;
 export const ERR_INVALID_PASSWORD: string;
+export const ERR_INVALID_UNCOMPRESSED_SIZE: string;
+export const ERR_SPLIT_ZIP_FILE: string;
 export const ERR_DUPLICATED_NAME: string;
 export const ERR_INVALID_COMMENT: string;
 export const ERR_INVALID_ENTRY_NAME: string;
@@ -566,6 +586,7 @@ export const ERR_INVALID_EXTRAFIELD_TYPE: string;
 export const ERR_INVALID_EXTRAFIELD_DATA: string;
 export const ERR_INVALID_ENCRYPTION_STRENGTH: string;
 export const ERR_UNSUPPORTED_FORMAT: string;
-export const ERR_SPLIT_ZIP_FILE: string;
-export const ERR_ITERATOR_COMPLETED_TOO_SOON: string;
 export const ERR_UNDEFINED_UNCOMPRESSED_SIZE: string;
+export const ERR_ZIP_NOT_EMPTY: string;
+
+export {};
