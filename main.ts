@@ -10,10 +10,19 @@ import { signal } from "./interrupt_signal.ts";
 import { log } from "./log.ts";
 import { loadLevels, orchardURL } from "./orchard.ts";
 import { retry } from "./retry.ts";
-import { extractZipInto } from "./unzip.ts";
+import { checkZip, writeEntry } from "./unzip.ts";
 
 const {
-  options: { yeeted, database, concurrency, dryRun, orchard, codex },
+  options: {
+    yeeted,
+    database,
+    concurrency,
+    maxFiles,
+    maxSize,
+    dryRun,
+    orchard,
+    codex,
+  },
   args: [output],
 } = await new Command()
   .name("levelsync")
@@ -51,6 +60,16 @@ const {
     "-c, --concurrency <number:positive-integer>",
     "Number of levels to download concurrently.",
     { default: 1 },
+  )
+  .option(
+    "--max-files <number:positive-integer>",
+    "Limit on the number of files in each level.",
+    { default: 10000 },
+  )
+  .option(
+    "--max-size <bytes:positive-integer>",
+    "Limit on the uncompressed size of each level.",
+    { default: 500000000 },
   )
   .option(
     "-n, --dry-run",
@@ -161,6 +180,8 @@ for (const id of toRemove) {
     error = true;
   }
 }
+let maxFilesHelp = " (consider raising the limit using the --max-files option)";
+let maxSizeHelp = " (consider raising the limit using the --max-size option)";
 // deno-lint-ignore no-control-regex
 const invalidFilenameRE = /[\0-\x1f"*:<>?|/\\]|^\.{0,2}$/;
 const semaphore = new AsyncSemaphore(concurrency);
@@ -193,29 +214,60 @@ try {
             if (dryRun) {
               return;
             }
-            const tempDir = await Deno.makeTempDir({ dir: output, prefix: id });
+            const zipReader = new ZipReader(
+              new HttpReader(url, { preventHeadRequest: true, signal }),
+              { signal },
+            );
             try {
-              (await Deno.open(join(tempDir, ".levelsync"), {
-                write: true,
-                create: true,
-                truncate: true,
-              })).close();
-              const zipReader = new ZipReader(
-                new HttpReader(url, { preventHeadRequest: true, signal }),
-                { signal },
-              );
+              const result = await checkZip(zipReader, {
+                fileCount: maxFiles,
+                uncompressedSize: maxSize,
+              });
+              if (result.error !== null) {
+                switch (result.error) {
+                  case "file-count":
+                    log.warn(
+                      `Refusing to download ${id}: Number of files (${result.fileCount}) exceeds limit${maxFilesHelp}`,
+                    );
+                    maxFilesHelp = "";
+                    break;
+                  case "uncompressed-size":
+                    log.warn(
+                      `Refusing to download ${id}: Uncompressed size (${result.uncompressedSize} bytes) exceeds limit${maxSizeHelp}`,
+                    );
+                    maxSizeHelp = "";
+                    break;
+                  case "name":
+                    log.warn(
+                      `Refusing to download ${id}: Invalid filename '${result.name}'`,
+                    );
+                    break;
+                }
+                return;
+              }
+              const tempDir = await Deno.makeTempDir({
+                dir: output,
+                prefix: id,
+              });
               try {
-                await extractZipInto(zipReader, tempDir);
-              } finally {
-                await zipReader.close();
+                (await Deno.open(join(tempDir, ".levelsync"), {
+                  write: true,
+                  create: true,
+                  truncate: true,
+                })).close();
+                for (const { name, entry } of result.checkedEntries) {
+                  await writeEntry(join(tempDir, name), entry);
+                }
+                if (Deno.build.os !== "windows") {
+                  await Deno.chmod(tempDir, 0o755);
+                }
+                await Deno.rename(tempDir, join(output, id));
+              } catch (e) {
+                await Deno.remove(tempDir, { recursive: true });
+                throw e;
               }
-              if (Deno.build.os !== "windows") {
-                await Deno.chmod(tempDir, 0o755);
-              }
-              await Deno.rename(tempDir, join(output, id));
-            } catch (e) {
-              await Deno.remove(tempDir, { recursive: true });
-              throw e;
+            } finally {
+              await zipReader.close();
             }
           } finally {
             semaphore.release();

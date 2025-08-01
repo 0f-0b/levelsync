@@ -57,8 +57,8 @@
     "@std/text@1.0.15": {
       "integrity": "91f5cc1e12779a3d95f1be34e763f9c28a75a078b7360e6fcaef0d8d9b1e3e7f"
     },
-    "@zip-js/zip-js@2.7.70": {
-      "integrity": "0a554517b63ee3e0dd9bb45c8b892c48ed4397cd4a23deb0160b0e184e0d35ab"
+    "@zip-js/zip-js@2.7.71": {
+      "integrity": "e8f66fe04b58ca6483a6dde6b185e579784729320687bd21b473aa0f37fa8796"
     }
   },
   "npm": {

@@ -38,6 +38,16 @@ deno install -fgr --allow-read --allow-write --allow-net https://cdn.jsdelivr.ne
 
   Download a maximum of `NUMBER` levels simultaneously. Defaults to `1`.
 
+- **`--max-files`** _`NUMBER`_
+
+  Do not download levels that contain more than `NUMBER` files. Defaults to
+  `10000`.
+
+- **`--max-size`** _`SIZE`_
+
+  Do not download levels that decompresses to more than `SIZE` bytes. Defaults
+  to `500000000`.
+
 - **`-n`**, **`--dry-run`**
 
   Show levels to be added or removed but do not actually update them.

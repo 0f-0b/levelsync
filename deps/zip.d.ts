@@ -388,6 +388,8 @@ export interface Entry {
 
 export interface ReadOptions {
   passThrough?: boolean | undefined;
+  checkOverlappingEntry?: boolean | undefined;
+  checkOverlappingEntryOnly?: boolean | undefined;
   checkPasswordOnly?: boolean | undefined;
   checkSignature?: boolean | undefined;
   password?: string | undefined;
@@ -577,6 +579,7 @@ export const ERR_INVALID_SIGNATURE: string;
 export const ERR_INVALID_PASSWORD: string;
 export const ERR_INVALID_UNCOMPRESSED_SIZE: string;
 export const ERR_SPLIT_ZIP_FILE: string;
+export const ERR_OVERLAPPING_ENTRY: string;
 export const ERR_DUPLICATED_NAME: string;
 export const ERR_INVALID_COMMENT: string;
 export const ERR_INVALID_ENTRY_NAME: string;
