@@ -1,7 +1,5 @@
 import type { Awaitable } from "../async.ts";
 
-type Merge<T, U> = Omit<T, keyof U> & U;
-
 export interface DeflateOptions {
   level?: number | undefined;
   chunkSize?: number | undefined;
@@ -11,54 +9,36 @@ export interface InflateOptions {
   chunkSize?: number | undefined;
 }
 
-export interface SyncCodec {
-  append(data: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer>;
-  flush(): Uint8Array<ArrayBuffer> | undefined;
-}
-
-export interface EventBasedCodec {
-  push(data: Uint8Array<ArrayBuffer>, finalChunk?: boolean): unknown;
-}
+export type DeflateStreamConstructor = new (
+  format: "deflate-raw",
+  options: DeflateOptions,
+) => ReadableWritablePair<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>;
+export type Deflate64StreamConstructor = new (
+  format: "deflate-raw" | "deflate64-raw",
+  options: DeflateOptions,
+) => ReadableWritablePair<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>;
+export type InflateStreamConstructor = new (
+  format: "deflate-raw",
+  options: InflateOptions,
+) => ReadableWritablePair<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>;
 
 export interface Configuration {
-  baseURL?: string | undefined;
+  baseURI?: string | undefined;
+  wasmURI?: string | undefined;
+  workerURI?: string | undefined;
   chunkSize?: number | undefined;
   maxWorkers?: number | undefined;
   terminateWorkerTimeout?: number | undefined;
-  useWebWorkers?: boolean | undefined;
   useCompressionStream?: boolean | undefined;
-  Deflate?: (new (options: DeflateOptions) => SyncCodec) | undefined;
-  Inflate?: (new (options: InflateOptions) => SyncCodec) | undefined;
-  CompressionStream?:
-    | (new (format: string, options: DeflateOptions) => CompressionStream)
-    | undefined;
-  DecompressionStream?:
-    | (new (format: string, options: InflateOptions) => DecompressionStream)
-    | undefined;
-  workerScripts?: {
-    deflate?: string[] | undefined;
-    inflate?: string[] | undefined;
-  } | undefined;
+  useWebWorkers?: boolean | undefined;
+  CompressionStream?: DeflateStreamConstructor | undefined;
+  DecompressionStream?: InflateStreamConstructor | undefined;
+  CompressionStreamZlib?: DeflateStreamConstructor | undefined;
+  DecompressionStreamZlib?: Deflate64StreamConstructor | undefined;
 }
 
 export function configure(configuration: Configuration): undefined;
-export function initShimAsyncCodec<T extends EventBasedCodec, DO, IO>(
-  library: {
-    Deflate: new (options: Merge<DO, DeflateOptions>) => T;
-    Inflate: new (options: Merge<IO, InflateOptions>) => T;
-  },
-  options: {
-    deflate?: DO | undefined;
-    inflate?: IO | undefined;
-  } | undefined,
-  registerDataHandler: (
-    codec: T,
-    handler: (data: ArrayLike<number>) => undefined,
-  ) => unknown,
-): {
-  Deflate: new (options?: DeflateOptions) => SyncCodec;
-  Inflate: new (options?: InflateOptions) => SyncCodec;
-};
+export function resetWasmModule(): undefined;
 export function terminateWorkers(): Promise<undefined>;
 export function getMimeType(filename: string): string;
 
@@ -210,11 +190,6 @@ export class SplitDataReader extends Reader implements SeekableReadableReader {
   ): Promise<Uint8Array<ArrayBuffer>>;
 }
 
-/** @deprecated */
-export const SplitZipReader: typeof SplitDataReader;
-/** @deprecated */
-export type SplitZipReader = SplitDataReader;
-
 export abstract class Writer extends Stream implements WritableWriter {
   readonly writable: WritableByteStream;
   writeUint8Array(array: Uint8Array<ArrayBuffer>): Awaitable<undefined>;
@@ -268,23 +243,6 @@ export class SplitDataWriter extends Stream implements WritableWriter {
   constructor(writers: DiskWriterIterator, splitAt?: number);
   override init(): undefined;
 }
-
-/** @deprecated */
-export const SplitZipWriter: typeof SplitDataWriter;
-/** @deprecated */
-export type SplitZipWriter = SplitDataWriter;
-export const GenericReader: new (reader: ReadableReaderLike) => ReadableReader;
-export const GenericWriter: new (writer: WritableWriterLike) => WritableWriter;
-export function initStream(
-  stream: Stream,
-  sizeHint?: number,
-): Promise<undefined>;
-export function readUint8Array(
-  reader: Reader,
-  index: number,
-  length: number,
-  diskNumber?: number,
-): Awaitable<Uint8Array<ArrayBuffer>>;
 
 export interface BitFlag {
   level: number;
@@ -378,11 +336,7 @@ export interface Entry {
   version: number;
   versionMadeBy: number;
   msDosCompatible: boolean;
-  /** @deprecated */
-  internalFileAttribute: number;
   internalFileAttributes: number;
-  /** @deprecated */
-  externalFileAttribute: number;
   externalFileAttributes: number;
 }
 
@@ -504,11 +458,7 @@ export interface WriteOptions {
   creationDate?: Date | undefined;
   extendedTimestamp?: boolean | undefined;
   msDosCompatible?: boolean | undefined;
-  /** @deprecated */
-  internalFileAttribute?: number | undefined;
   internalFileAttributes?: number | undefined;
-  /** @deprecated */
-  externalFileAttribute?: number | undefined;
   externalFileAttributes?: number | undefined;
   useCompressionStream?: boolean | undefined;
   supportZip64SplitFile?: boolean | undefined;
@@ -564,8 +514,6 @@ export class ZipWriterStream {
 }
 
 export const ERR_HTTP_RANGE: string;
-export const ERR_ITERATOR_COMPLETED_TOO_SOON: string;
-export const ERR_WRITER_NOT_INITIALIZED: string;
 export const ERR_BAD_FORMAT: string;
 export const ERR_EOCDR_NOT_FOUND: string;
 export const ERR_EOCDR_LOCATOR_ZIP64_NOT_FOUND: string;
