@@ -31,7 +31,7 @@ const {
     Automatically download Rhythm Doctor levels.
   `)
   .type("positive-integer", ({ label, name, value }) => {
-    if (!/^[1-9]\d*$/.test(value)) {
+    if (!/^0*[1-9]\d*$/.test(value)) {
       throw new ValidationError(
         `${label} "${name}" must be a positive integer, but got "${value}".`,
       );
