@@ -1,9 +1,9 @@
 const controller = new AbortController();
-Deno.addSignalListener("SIGINT", function abort() {
-  queueMicrotask(() => {
-    Deno.addSignalListener("SIGINT", () => Deno.exit(0x82));
-    Deno.removeSignalListener("SIGINT", abort);
-  });
+const abort = () => {
+  Deno.removeSignalListener("SIGINT", abort);
+  Deno.removeSignalListener("SIGTERM", abort);
   controller.abort(new DOMException("Interrupted", "AbortError"));
-});
+};
+Deno.addSignalListener("SIGINT", abort);
+Deno.addSignalListener("SIGTERM", abort);
 export const signal = controller.signal;
