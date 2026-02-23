@@ -22,15 +22,18 @@ export type InflateStreamConstructor = new (
   options: InflateOptions,
 ) => ReadableWritablePair<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>;
 
-export interface Configuration {
+export interface WorkerConfiguration {
+  useWebWorkers?: boolean | undefined;
+  useCompressionStream?: boolean | undefined;
+}
+
+export interface Configuration extends WorkerConfiguration {
   baseURI?: string | undefined;
   wasmURI?: string | undefined;
   workerURI?: string | undefined;
   chunkSize?: number | undefined;
   maxWorkers?: number | undefined;
   terminateWorkerTimeout?: number | undefined;
-  useCompressionStream?: boolean | undefined;
-  useWebWorkers?: boolean | undefined;
   CompressionStream?: DeflateStreamConstructor | undefined;
   DecompressionStream?: InflateStreamConstructor | undefined;
   CompressionStreamZlib?: DeflateStreamConstructor | undefined;
@@ -38,17 +41,13 @@ export interface Configuration {
 }
 
 export function configure(configuration: Configuration): undefined;
-export function resetWasmModule(): undefined;
 export function terminateWorkers(): Promise<undefined>;
 export function getMimeType(filename: string): string;
 
-export interface ReadableByteStream
-  extends ReadableStream<Uint8Array<ArrayBuffer>> {
-  size?: number | undefined;
-}
+export type ReadableByteStream = ReadableStream<Uint8Array<ArrayBuffer>>;
 
 export interface ReadableReader {
-  readonly readable: ReadableByteStream;
+  get readable(): ReadableByteStream;
   size?: number | undefined;
   chunkSize?: number | undefined;
   initialized?: boolean | undefined;
@@ -63,10 +62,11 @@ export type ReadableReaderLike =
 export interface SeekableReadableByteStream extends ReadableByteStream {
   diskNumberStart?: number | undefined;
   offset?: number | undefined;
+  size?: number | undefined;
 }
 
 export interface SeekableReadableReader extends ReadableReader {
-  readonly readable: SeekableReadableByteStream;
+  get readable(): SeekableReadableByteStream;
   lastDiskNumber?: number | undefined;
   size: number;
   readUint8Array(
@@ -76,11 +76,10 @@ export interface SeekableReadableReader extends ReadableReader {
   ): Awaitable<Uint8Array<ArrayBuffer>>;
 }
 
-export interface WritableByteStream
-  extends WritableStream<Uint8Array<ArrayBuffer>> {}
+export type WritableByteStream = WritableStream<Uint8Array<ArrayBuffer>>;
 
 export interface WritableWriter {
-  readonly writable: WritableByteStream;
+  get writable(): WritableByteStream;
   diskNumber?: number | undefined;
   diskOffset?: number | undefined;
   availableSize?: number | undefined;
@@ -96,6 +95,15 @@ export type WritableWriterLike =
   | WritableByteStream
   | DiskWriterIterator;
 
+export interface TempStream {
+  get readable(): ReadableByteStream;
+  get writable(): WritableByteStream;
+  diskOffset?: number | undefined;
+  size?: number | undefined;
+  initialized?: boolean | undefined;
+  init?: ((this: this) => unknown) | undefined;
+}
+
 declare class Stream {
   size: number;
   initialized?: boolean | undefined;
@@ -104,7 +112,7 @@ declare class Stream {
 
 export abstract class Reader extends Stream implements SeekableReadableReader {
   chunkSize?: number | undefined;
-  readonly readable: SeekableReadableByteStream;
+  get readable(): SeekableReadableByteStream;
   abstract readUint8Array(
     index: number,
     length: number,
@@ -191,7 +199,7 @@ export class SplitDataReader extends Reader implements SeekableReadableReader {
 }
 
 export abstract class Writer extends Stream implements WritableWriter {
-  readonly writable: WritableByteStream;
+  get writable(): WritableByteStream;
   writeUint8Array(array: Uint8Array<ArrayBuffer>): Awaitable<undefined>;
 }
 
@@ -203,7 +211,7 @@ export class TextWriter extends Writer implements WritableWriter {
 }
 
 export class BlobWriter extends Stream implements WritableWriter {
-  readonly writable: WritableByteStream;
+  get writable(): WritableByteStream;
   constructor(contentType?: string);
   override init(): undefined;
   getData(): Promise<Blob>;
@@ -217,13 +225,14 @@ export class Data64URIWriter extends Writer implements WritableWriter {
 }
 
 export class Uint8ArrayWriter extends Writer implements WritableWriter {
+  constructor(initialBufferSize?: number);
   override init(sizeHint?: number): undefined;
   override writeUint8Array(array: Uint8Array<ArrayBuffer>): undefined;
   getData(): Uint8Array<ArrayBuffer>;
 }
 
 export interface DiskWriter {
-  readonly writable: WritableByteStream;
+  get writable(): WritableByteStream;
   size?: number | undefined;
   maxSize?: number | undefined;
   initialized?: boolean | undefined;
@@ -239,9 +248,17 @@ export class SplitDataWriter extends Stream implements WritableWriter {
   diskOffset: number;
   availableSize: number;
   maxSize: number;
-  readonly writable: WritableByteStream;
+  get writable(): WritableByteStream;
   constructor(writers: DiskWriterIterator, splitAt?: number);
   override init(): undefined;
+}
+
+export interface MsdosAttributes {
+  readOnly: boolean;
+  hidden: boolean;
+  system: boolean;
+  directory: boolean;
+  archive: boolean;
 }
 
 export interface BitFlag {
@@ -293,6 +310,19 @@ export interface ExtraFieldNTFS extends ExtraField {
   rawCreationDate: bigint;
 }
 
+export interface ExtraFieldUnix extends ExtraField {
+  version: number;
+  uid: number;
+  gid: number;
+  unixMode: number | undefined;
+}
+
+export interface ExtraFieldInfoZip extends ExtraField {
+  version: number;
+  uid: number;
+  gid: number;
+}
+
 export interface ExtraFieldExtendedTimestamp extends ExtraField {
   lastModDate?: Date;
   rawLastModDate?: number;
@@ -327,20 +357,30 @@ export interface Entry {
   extraFieldUnicodeComment: ExtraFieldUnicodeComment | undefined;
   extraFieldAES: ExtraFieldAES | undefined;
   extraFieldNTFS: ExtraFieldNTFS | undefined;
+  extraFieldUnix: ExtraFieldUnix | undefined;
+  extraFieldInfoZip: ExtraFieldInfoZip | undefined;
   extraFieldExtendedTimestamp: ExtraFieldExtendedTimestamp | undefined;
   rawExtraField: Uint8Array<ArrayBuffer>;
   compressionMethod: number;
   signature: number | undefined;
-  zip64: boolean;
+  zip64: true | undefined;
   bitFlag: BitFlag | undefined;
   version: number;
   versionMadeBy: number;
   msDosCompatible: boolean;
   internalFileAttributes: number;
   externalFileAttributes: number;
+  msdosAttributes: MsdosAttributes;
+  msdosAttributesRaw: number;
+  uid: number | undefined;
+  gid: number | undefined;
+  unixMode: number | undefined;
+  setuid: boolean;
+  setgid: boolean;
+  sticky: boolean;
 }
 
-export interface ReadOptions {
+export interface ReadOptions extends WorkerConfiguration {
   passThrough?: boolean | undefined;
   checkOverlappingEntry?: boolean | undefined;
   checkOverlappingEntryOnly?: boolean | undefined;
@@ -348,8 +388,6 @@ export interface ReadOptions {
   checkSignature?: boolean | undefined;
   password?: string | undefined;
   rawPassword?: Uint8Array<ArrayBuffer> | undefined;
-  useWebWorkers?: boolean | undefined;
-  useCompressionStream?: boolean | undefined;
   signal?: AbortSignal | undefined;
   preventClose?: boolean | undefined;
   transferStreams?: boolean | undefined;
@@ -431,10 +469,11 @@ export interface ZipWriterOptions {
   offset?: number | undefined;
 }
 
-export interface WriteOptions {
+export interface WriteOptions extends WorkerConfiguration {
   zip64?: boolean | undefined;
   level?: number | undefined;
   bufferedWrite?: boolean | undefined;
+  createTempStream?: (() => Awaitable<TempStream>) | undefined;
   keepOrder?: boolean | undefined;
   encodeText?:
     | ((text: string) => Uint8Array<ArrayBuffer> | undefined)
@@ -447,7 +486,6 @@ export interface WriteOptions {
   encrypted?: boolean | undefined;
   encryptionStrength?: number | undefined;
   zipCrypto?: boolean | undefined;
-  useWebWorkers?: boolean | undefined;
   useUnicodeFileNames?: boolean | undefined;
   dataDescriptor?: boolean | undefined;
   dataDescriptorSignature?: boolean | undefined;
@@ -460,8 +498,17 @@ export interface WriteOptions {
   msDosCompatible?: boolean | undefined;
   internalFileAttributes?: number | undefined;
   externalFileAttributes?: number | undefined;
-  useCompressionStream?: boolean | undefined;
+  msdosAttributes?: Partial<MsdosAttributes> | undefined;
+  msdosAttributesRaw?: number | undefined;
+  uid?: number | undefined;
+  gid?: number | undefined;
+  unixMode?: number | undefined;
+  unixExtraFieldType?: "infozip" | "unix" | undefined;
+  setuid?: boolean | undefined;
+  setgid?: boolean | undefined;
+  sticky?: boolean | undefined;
   supportZip64SplitFile?: boolean | undefined;
+  transferStreams?: boolean | undefined;
 }
 
 export interface AddEntryOptions {

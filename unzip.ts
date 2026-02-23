@@ -1,6 +1,6 @@
 import { dirname } from "./deps/std/path/dirname.ts";
 import { normalize } from "./deps/std/path/normalize.ts";
-import type { ReadableEntry, ZipReader } from "./deps/zip.ts";
+import type { ReadableEntry, ZipReader } from "./deps/zip_js.ts";
 
 // deno-lint-ignore no-control-regex
 const invalidPathRE = /[\0-\x1f"*:<>?|]|^(?:\.\.)?(?:[/\\]|$)/;
