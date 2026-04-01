@@ -6,12 +6,14 @@ import { join } from "./deps/std/path/join.ts";
 import { HttpReader, terminateWorkers, ZipReader } from "./deps/zip_js.ts";
 
 import { updateFromB2 } from "./b2.ts";
+import { delay } from "./delay.ts";
 import { signal } from "./interrupt_signal.ts";
 import { log } from "./log.ts";
 import { loadLevels, orchardURL } from "./orchard.ts";
 import { retry } from "./retry.ts";
 import { checkZip, writeEntry } from "./unzip.ts";
 
+const { min } = Math;
 const {
   options: {
     yeeted,
@@ -123,13 +125,9 @@ try {
 addEventListener("unload", () => Deno.removeSync(lock));
 const toAdd = await (async () => {
   try {
-    await retry(() => updateFromB2(orchard, database, { signal }), {
-      onError: (e, n) => {
-        if (n === 0) {
-          throw e;
-        }
-        log.warn(`Cannot update level database (${n} retries left): ${e}`);
-      },
+    await updateFromB2(orchard, database, {
+      onRetry: (e, n) =>
+        log.warn(`Cannot update level database (${n} retries left): ${e}`),
       signal,
     });
     return loadLevels(database);
@@ -203,11 +201,11 @@ try {
       }
       let started = false;
       try {
-        await retry(async (attempts) => {
+        await retry(async () => {
           await semaphore.wait();
           try {
-            signal?.throwIfAborted();
-            if (attempts === 0) {
+            signal.throwIfAborted();
+            if (!started) {
               log.step("Download", `${id} (${url})`);
               started = true;
             }
@@ -268,25 +266,26 @@ try {
           } finally {
             semaphore.release();
           }
-        }, {
-          onError: (e, n) => {
-            if (n === 0) {
-              throw e;
-            }
-            if (
-              !fallback && e instanceof Error &&
-              (e.message === "HTTP error Forbidden" ||
-                e.message === "HTTP error Not Found")
-            ) {
-              e = new Error(
-                `The original file has been deleted. Will retry with '${codexURL}'.`,
-              );
-              fallback = true;
-              url = codexURL;
-            }
-            log.warn(`Cannot download ${id} (${n} retries left): ${e}`);
-          },
-          signal,
+        }, async (error, retries) => {
+          if (retries === 10) {
+            throw error;
+          }
+          signal.throwIfAborted();
+          if (
+            !fallback && error instanceof Error &&
+            (error.message === "HTTP error Forbidden" ||
+              error.message === "HTTP error Not Found")
+          ) {
+            error = new Error(
+              `The original file has been deleted. Will retry with '${codexURL}'.`,
+            );
+            fallback = true;
+            url = codexURL;
+          }
+          log.warn(
+            `Cannot download ${id} (${10 - retries} retries left): ${error}`,
+          );
+          await delay(min(2 ** retries, 600) * 1000, { signal });
         });
       } catch (e) {
         if (started) {

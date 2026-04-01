@@ -1,4 +1,7 @@
 {
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": true
+  },
   "lint": {
     "rules": {
       "include": [
