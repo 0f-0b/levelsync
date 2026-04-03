@@ -61,6 +61,7 @@ export async function updateFromB2(
       }
       const date = new Date(remoteMtime);
       await Deno.utime(tempFile, date, date);
+      await Deno.chmod(tempFile, 0o444);
       await Deno.rename(tempFile, path);
     } catch (e) {
       await Deno.remove(tempFile);
