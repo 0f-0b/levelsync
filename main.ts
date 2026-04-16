@@ -5,7 +5,7 @@ import { AsyncSemaphore } from "./deps/esfx/async_semaphore.ts";
 import { join } from "./deps/std/path/join.ts";
 import { HttpReader, terminateWorkers, ZipReader } from "./deps/zip_js.ts";
 
-import { updateFromB2 } from "./b2.ts";
+import { updateFromDatasette } from "./datasette.ts";
 import { delay } from "./delay.ts";
 import { signal } from "./interrupt_signal.ts";
 import { log } from "./log.ts";
@@ -125,7 +125,7 @@ try {
 addEventListener("unload", () => Deno.removeSync(lock));
 const toAdd = await (async () => {
   try {
-    await updateFromB2(orchard, database, {
+    await updateFromDatasette(orchard, database, {
       onRetry: (e, n) =>
         log.warn(`Cannot update level database (${n} retries left): ${e}`),
       signal,

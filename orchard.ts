@@ -9,8 +9,7 @@ DatabaseSync.prototype[Symbol.dispose] = function () {
   }
 };
 
-export const orchardURL =
-  "https://f000.backblazeb2.com/file/rdsqlite/backups/orchard-main.db";
+export const orchardURL = "https://api.rhythm.cafe/datasette/orchard.db";
 
 export interface Level {
   originalURL: string | null;

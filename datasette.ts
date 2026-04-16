@@ -1,3 +1,4 @@
+import { crypto } from "./deps/std/crypto/crypto.ts";
 import { dirname } from "./deps/std/path/dirname.ts";
 
 import { delay } from "./delay.ts";
@@ -5,53 +6,47 @@ import { retry } from "./retry.ts";
 
 const { min } = Math;
 
-async function tryStat(path: string): Promise<Deno.FileInfo | null> {
-  try {
-    return await Deno.stat(path);
-  } catch {
-    return null;
+async function* streamFile(
+  signal: AbortSignal | undefined,
+  path: string,
+): AsyncIteratorObject<Uint8Array<ArrayBuffer>, undefined> {
+  const { readable } = await Deno.open(path);
+  for await (const chunk of readable) {
+    signal?.throwIfAborted();
+    yield chunk;
   }
 }
 
-function mtimeFromFileInfo(info: Deno.FileInfo | null): number | undefined {
-  return info?.mtime?.getTime();
-}
-
-function mtimeFromB2Headers(headers: Headers): number | undefined {
-  const str = headers.get("x-bz-info-src_last_modified_millis") ||
-    headers.get("x-bz-upload-timestamp");
-  if (!str) {
-    return undefined;
-  }
-  const time = Number(str);
-  if (!Number.isFinite(time)) {
-    return undefined;
-  }
-  return time;
-}
-
-export interface UpdateFromB2Options {
+export interface UpdateFromDatasetteOptions {
   onRetry?: (reason: unknown, attemptsLeft: number) => unknown;
   signal?: AbortSignal;
 }
 
-export async function updateFromB2(
+export async function updateFromDatasette(
   url: string,
   path: string,
-  options?: UpdateFromB2Options,
+  options?: UpdateFromDatasetteOptions,
 ): Promise<boolean> {
   const onRetry = options?.onRetry;
   const signal = options?.signal;
+  const headers = new Headers();
+  try {
+    const hash = new Uint8Array(
+      await crypto.subtle.digest("SHA-256", streamFile(signal, path)),
+    ).toHex();
+    headers.append("if-none-match", `"${hash}"`);
+  } catch (e) {
+    if (!(e instanceof Deno.errors.NotFound)) {
+      throw e;
+    }
+  }
   return await retry(async () => {
-    const res = await fetch(url, { signal });
+    const res = await fetch(url, { headers, signal });
+    if (res.status === 304) {
+      return false;
+    }
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
-    }
-    const remoteMtime = mtimeFromB2Headers(res.headers) ?? Infinity;
-    const localMtime = mtimeFromFileInfo(await tryStat(path)) ?? -Infinity;
-    if (remoteMtime <= localMtime) {
-      await res.body?.cancel();
-      return false;
     }
     const tempFile = await Deno.makeTempFile({ dir: dirname(path) });
     try {
@@ -59,8 +54,7 @@ export async function updateFromB2(
         // @ts-expect-error Deno typings are not compatible with `exactOptionalPropertyTypes` yet
         await Deno.writeFile(tempFile, res.body, { signal });
       }
-      const date = new Date(remoteMtime);
-      await Deno.utime(tempFile, date, date);
+      await Deno.utime(tempFile, 0, 0);
       await Deno.chmod(tempFile, 0o444);
       await Deno.rename(tempFile, path);
     } catch (e) {
