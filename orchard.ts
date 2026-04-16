@@ -1,14 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { assert } from "./deps/std/assert/assert.ts";
 
-DatabaseSync.prototype[Symbol.dispose] = function () {
-  try {
-    this.close();
-  } catch {
-    // ignored
-  }
-};
-
 export const orchardURL = "https://api.rhythm.cafe/datasette/orchard.db";
 
 export interface Level {
