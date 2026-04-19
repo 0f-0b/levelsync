@@ -8,7 +8,7 @@ levels.
 ## Installation
 
 Make sure you
-[have Deno installed](https://docs.deno.com/runtime/manual/getting_started/installation),
+[have Deno installed](https://docs.deno.com/runtime/getting_started/installation/),
 and then run the following in a terminal:
 
 ```shell
@@ -38,6 +38,10 @@ deno install -fgr --allow-read --allow-write --allow-net https://cdn.jsdelivr.ne
 
   Download a maximum of `NUMBER` levels simultaneously. Defaults to `1`.
 
+- **`-a`**, **`--approved-only`**
+
+  Only download peer reviewed levels.
+
 - **`--max-files`** _`NUMBER`_
 
   Do not download levels that contain more than `NUMBER` files. Defaults to
@@ -55,11 +59,7 @@ deno install -fgr --allow-read --allow-write --allow-net https://cdn.jsdelivr.ne
 - **`--orchard`** _`URL`_
 
   Download the level database from `URL`. Defaults to
-  `https://api.rhythm.cafe/datasette/orchard.db`.
-
-- **`--codex`**
-
-  Always download levels from `codex.rhythm.cafe`.
+  `https://datasette.rhythm.cafe/rdlevels.db`.
 
 - **`-h`**, **`--help`**
 
@@ -82,13 +82,10 @@ You might want to schedule **levelsync** to run periodically. For example with
 cron:
 
 ```crontab
-0 * * * * levelsync '/path/to/Rhythm Doctor/Levels'
+0 0 * * * levelsync '/path/to/Rhythm Doctor/Levels'
 ```
-
-This program currently lacks a few key features compared to the
-[original levelsync](https://github.com/huantianad/levelsync), notably the
-ability to filter out unreviewed levels.
 
 ## See Also
 
 - GitHub repository: <https://github.com/0f-0b/levelsync>.
+- The original levelsync: <https://github.com/huantianad/levelsync>.

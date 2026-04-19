@@ -19,11 +19,11 @@ const {
     yeeted,
     database,
     concurrency,
+    approvedOnly,
     maxFiles,
     maxSize,
     dryRun,
     orchard,
-    codex,
   },
   args: [output],
 } = await new Command()
@@ -64,6 +64,10 @@ const {
     { default: 1 },
   )
   .option(
+    "-a, --approved-only",
+    "Only download peer reviewed levels.",
+  )
+  .option(
     "--max-files <number:positive-integer>",
     "Limit on the number of files in each level.",
     { default: 10000 },
@@ -81,10 +85,6 @@ const {
     "--orchard <url:url>",
     "URL of the level database.",
     { default: orchardURL },
-  )
-  .option(
-    "--codex",
-    "Download levels from codex.rhythm.cafe.",
   )
   .arguments("<output:file>")
   .error((error, cmd) => {
@@ -136,17 +136,27 @@ const toAdd = await (async () => {
     Deno.exit(3);
   }
 })();
-const toRemove = new Set<string>();
-let error = false;
+if (approvedOnly) {
+  for (const [hash, { approved }] of toAdd) {
+    if (!approved) {
+      toAdd.delete(hash);
+    }
+  }
+}
+const toRemove: { name: string; id: string }[] = [];
 try {
-  for await (const { name: id } of Deno.readDir(output)) {
+  for await (const { name } of Deno.readDir(output)) {
+    let haveId: string;
     try {
-      await Deno.stat(join(output, id, ".levelsync"));
+      haveId = await Deno.readTextFile(join(output, name, ".levelsync"));
     } catch {
       continue;
     }
-    if (!toAdd.delete(id)) {
-      toRemove.add(id);
+    const wantId = toAdd.get(name)?.id;
+    if (haveId === wantId) {
+      toAdd.delete(name);
+    } else {
+      toRemove.push({ name, id: haveId || name });
     }
   }
 } catch (e) {
@@ -154,51 +164,40 @@ try {
   Deno.exit(3);
 }
 if (
-  !dryRun && toRemove.size >= 20 &&
-  !confirm(`About to remove ${toRemove.size} levels. Continue?`)
+  !dryRun && toRemove.length >= 20 &&
+  !confirm(`About to remove ${toRemove.length} levels. Continue?`)
 ) {
-  log.warn(`Refusing to remove ${toRemove.size} levels.`);
+  log.warn(`Refusing to remove ${toRemove.length} levels.`);
   Deno.exit(3);
 }
-for (const id of toRemove) {
+let error = false;
+await Promise.all(toRemove.map(async ({ name, id }) => {
   log.step("Remove", id);
   if (dryRun) {
-    continue;
+    return;
   }
   try {
     if (yeeted !== undefined) {
       await Deno.mkdir(yeeted, { recursive: true });
-      await Deno.remove(join(output, id, ".levelsync"));
-      await Deno.rename(join(output, id), join(yeeted, id));
+      await Deno.remove(join(output, name, ".levelsync"));
+      await Deno.rename(join(output, name), join(yeeted, name));
     } else {
-      await Deno.remove(join(output, id), { recursive: true });
+      await Deno.remove(join(output, name), { recursive: true });
     }
   } catch (e) {
-    log.error(`Cannot remove ${id}: ${e}`);
+    log.error(`Cannot remove ${name}: ${e}`);
     error = true;
   }
+}));
+if (error) {
+  Deno.exit(1);
 }
 let maxFilesHelp = " (consider raising the limit using the --max-files option)";
 let maxSizeHelp = " (consider raising the limit using the --max-size option)";
-// deno-lint-ignore no-control-regex
-const invalidFilenameRE = /[\0-\x1f"*:<>?|/\\]|^\.{0,2}$/;
 const semaphore = new AsyncSemaphore(concurrency);
 try {
   await Promise.all(
-    Array.from(toAdd, async ([id, { originalURL, codexURL }]) => {
-      if (invalidFilenameRE.test(id)) {
-        log.warn(`Invalid level ID ${id}.`);
-        return;
-      }
-      let fallback: boolean;
-      let url: string;
-      if (codex || originalURL === null) {
-        fallback = true;
-        url = codexURL;
-      } else {
-        fallback = false;
-        url = originalURL;
-      }
+    Array.from(toAdd, async ([hash, { id, url }]) => {
       let started = false;
       try {
         await retry(async () => {
@@ -244,21 +243,19 @@ try {
             }
             const tempDir = await Deno.makeTempDir({
               dir: output,
-              prefix: id,
+              prefix: hash,
             });
             try {
-              (await Deno.open(join(tempDir, ".levelsync"), {
-                write: true,
-                create: true,
-                truncate: true,
-              })).close();
+              await Deno.writeTextFile(join(tempDir, ".levelsync"), id, {
+                createNew: true,
+              });
               for (const { name, entry } of result.checkedEntries) {
                 await writeEntry(join(tempDir, name), entry);
               }
               if (Deno.build.os !== "windows") {
                 await Deno.chmod(tempDir, 0o755);
               }
-              await Deno.rename(tempDir, join(output, id));
+              await Deno.rename(tempDir, join(output, hash));
             } catch (e) {
               await Deno.remove(tempDir, { recursive: true });
               throw e;
@@ -271,17 +268,6 @@ try {
             throw error;
           }
           signal.throwIfAborted();
-          if (
-            !fallback && error instanceof Error &&
-            (error.message === "HTTP error Forbidden" ||
-              error.message === "HTTP error Not Found")
-          ) {
-            error = new Error(
-              `The original file has been deleted. Will retry with '${codexURL}'.`,
-            );
-            fallback = true;
-            url = codexURL;
-          }
           log.warn(
             `Cannot download ${id} (${10 - retries} retries left): ${error}`,
           );

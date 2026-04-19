@@ -1,29 +1,36 @@
 import { DatabaseSync } from "node:sqlite";
 import { assert } from "./deps/std/assert/assert.ts";
 
-export const orchardURL = "https://api.rhythm.cafe/datasette/orchard.db";
+export const orchardURL = "https://datasette.rhythm.cafe/rdlevels.db";
 
 export interface Level {
-  originalURL: string | null;
-  codexURL: string;
+  id: string;
+  url: string;
+  approved: boolean;
 }
 
 export function loadLevels(path: string): Map<string, Level> {
   using db = new DatabaseSync(path, { readOnly: true });
   const stmt = db.prepare(`
-    select id, url, url2
-    from level
-    group by song, authors, artist
-    order by max(last_updated) desc
+    select sha1, id, rdzip_url, approval
+    from rdlevels
+    group by sha1
+    order by last_updated desc
   `);
   const levels = new Map<string, Level>();
   for (const row of stmt.iterate()) {
-    const { "id": id, "url": originalURL, "url2": codexURL } = row;
+    const {
+      "sha1": hash,
+      "id": id,
+      "rdzip_url": url,
+      "approval": approval,
+    } = row;
+    assert(typeof hash === "string" && /^[0-9a-f]{40}$/.test(hash));
+    assert(typeof url === "string");
     assert(typeof id === "string");
-    assert(typeof originalURL === "string" || originalURL === null);
-    assert(typeof codexURL === "string");
-    assert(!levels.has(id));
-    levels.set(id, { originalURL, codexURL });
+    assert(typeof approval === "number");
+    assert(!levels.has(hash));
+    levels.set(hash, { id, url, approved: approval >= 10 });
   }
   return levels;
 }
