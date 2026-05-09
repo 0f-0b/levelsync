@@ -2,7 +2,6 @@
 
 import { Command, ValidationError } from "./deps/cliffy/command.ts";
 import { AsyncSemaphore } from "./deps/esfx/async_semaphore.ts";
-import { join } from "./deps/std/path/join.ts";
 import { HttpReader, terminateWorkers, ZipReader } from "./deps/zip_js.ts";
 
 import { updateFromDatasette } from "./datasette.ts";
@@ -99,7 +98,7 @@ const {
   })
   .parse();
 Deno.mkdirSync(output, { recursive: true });
-const lock = join(output, ".levelsync.lock");
+const lock = `${output}/.levelsync.lock`;
 try {
   Deno.writeTextFileSync(lock, `${Deno.pid}`, { createNew: true });
 } catch (e) {
@@ -148,7 +147,7 @@ try {
   for await (const { name } of Deno.readDir(output)) {
     let haveId: string;
     try {
-      haveId = await Deno.readTextFile(join(output, name, ".levelsync"));
+      haveId = await Deno.readTextFile(`${output}/${name}/.levelsync`);
     } catch {
       continue;
     }
@@ -179,10 +178,10 @@ await Promise.all(toRemove.map(async ({ name, id }) => {
   try {
     if (yeeted !== undefined) {
       await Deno.mkdir(yeeted, { recursive: true });
-      await Deno.remove(join(output, name, ".levelsync"));
-      await Deno.rename(join(output, name), join(yeeted, name));
+      await Deno.remove(`${output}/${name}/.levelsync`);
+      await Deno.rename(`${output}/${name}`, `${yeeted}/${name}`);
     } else {
-      await Deno.remove(join(output, name), { recursive: true });
+      await Deno.remove(`${output}/${name}`, { recursive: true });
     }
   } catch (e) {
     log.error(`Cannot remove ${name}: ${e}`);
@@ -246,16 +245,16 @@ try {
               prefix: hash,
             });
             try {
-              await Deno.writeTextFile(join(tempDir, ".levelsync"), id, {
+              await Deno.writeTextFile(`${tempDir}/.levelsync`, id, {
                 createNew: true,
               });
               for (const { name, entry } of result.checkedEntries) {
-                await writeEntry(join(tempDir, name), entry);
+                await writeEntry(`${tempDir}/${name}`, entry);
               }
               if (Deno.build.os !== "windows") {
                 await Deno.chmod(tempDir, 0o755);
               }
-              await Deno.rename(tempDir, join(output, hash));
+              await Deno.rename(tempDir, `${output}/${hash}`);
             } catch (e) {
               await Deno.remove(tempDir, { recursive: true });
               throw e;

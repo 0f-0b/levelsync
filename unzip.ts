@@ -1,5 +1,4 @@
-import { dirname } from "./deps/std/path/dirname.ts";
-import { normalize } from "./deps/std/path/normalize.ts";
+import { dirname, normalize } from "node:path";
 import type { ReadableEntry, ZipReader } from "./deps/zip_js.ts";
 
 // deno-lint-ignore no-control-regex
@@ -25,25 +24,25 @@ export async function checkZip(
   zipReader: ZipReader,
   limits: Limits,
 ): Promise<CheckResult> {
-  const entries = await zipReader.getEntries();
-  const fileCount = entries.length;
+  const checkedEntries: CheckedEntry[] = [];
+  let fileCount = 0;
+  let uncompressedSize = 0;
+  for await (const entry of zipReader.getEntriesGenerator()) {
+    if (checkedEntries.length < limits.fileCount) {
+      const normalized = normalize(entry.filename);
+      if (invalidPathRE.test(normalized)) {
+        return { error: "name", name: entry.filename };
+      }
+      checkedEntries.push({ name: normalized, entry });
+    }
+    fileCount++;
+    uncompressedSize += entry.uncompressedSize;
+  }
   if (fileCount > limits.fileCount) {
     return { error: "file-count", fileCount };
   }
-  let uncompressedSize = 0;
-  for (const entry of entries) {
-    uncompressedSize += entry.uncompressedSize;
-  }
   if (uncompressedSize > limits.uncompressedSize) {
     return { error: "uncompressed-size", uncompressedSize };
-  }
-  const checkedEntries: CheckedEntry[] = [];
-  for (const entry of entries) {
-    const normalized = normalize(entry.filename);
-    if (invalidPathRE.test(normalized)) {
-      return { error: "name", name: entry.filename };
-    }
-    checkedEntries.push({ name: normalized, entry });
   }
   return { error: null, checkedEntries };
 }

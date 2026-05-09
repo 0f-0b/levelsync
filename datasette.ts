@@ -1,20 +1,22 @@
-import { crypto } from "./deps/std/crypto/crypto.ts";
-import { dirname } from "./deps/std/path/dirname.ts";
+import { createHash } from "node:crypto";
+import { dirname } from "node:path";
 
 import { delay } from "./delay.ts";
 import { retry } from "./retry.ts";
 
 const { min } = Math;
 
-async function* streamFile(
+async function sha256sum(
   signal: AbortSignal | undefined,
   path: string,
-): AsyncIteratorObject<Uint8Array<ArrayBuffer>, undefined> {
+): Promise<string> {
+  const hash = createHash("sha256");
   const { readable } = await Deno.open(path);
   for await (const chunk of readable) {
     signal?.throwIfAborted();
-    yield chunk;
+    hash.update(chunk);
   }
+  return hash.digest("hex");
 }
 
 export interface UpdateFromDatasetteOptions {
@@ -31,10 +33,7 @@ export async function updateFromDatasette(
   const signal = options?.signal;
   const headers = new Headers();
   try {
-    const hash = new Uint8Array(
-      await crypto.subtle.digest("SHA-256", streamFile(signal, path)),
-    ).toHex();
-    headers.append("if-none-match", `"${hash}"`);
+    headers.append("if-none-match", `"${await sha256sum(signal, path)}"`);
   } catch (e) {
     if (!(e instanceof Deno.errors.NotFound)) {
       throw e;

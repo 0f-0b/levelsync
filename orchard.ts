@@ -1,5 +1,5 @@
+import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { assert } from "./deps/std/assert/assert.ts";
 
 export const orchardURL = "https://datasette.rhythm.cafe/rdlevels.db";
 
