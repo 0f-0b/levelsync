@@ -4,9 +4,7 @@
   },
   "lint": {
     "rules": {
-      "include": [
-        "verbatim-module-syntax"
-      ]
+      "include": ["verbatim-module-syntax"]
     }
   },
   "tasks": {

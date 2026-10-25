@@ -40,6 +40,7 @@ export async function updateFromDatasette(
     }
   }
   return await retry(async () => {
+    // @ts-expect-error Deno typings are not compatible with `exactOptionalPropertyTypes` yet
     const res = await fetch(url, { headers, signal });
     if (res.status === 304) {
       return false;

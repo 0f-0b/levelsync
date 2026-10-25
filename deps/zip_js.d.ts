@@ -1,4 +1,4 @@
-import type { Awaitable } from "../async.ts";
+type Awaitable<T> = T | PromiseLike<T>;
 
 export interface DeflateOptions {
   level?: number | undefined;
@@ -34,6 +34,7 @@ export interface Configuration extends WorkerConfiguration {
   chunkSize?: number | undefined;
   maxWorkers?: number | undefined;
   terminateWorkerTimeout?: number | undefined;
+  workerStarvationTimeout?: number | undefined;
   CompressionStream?: DeflateStreamConstructor | undefined;
   DecompressionStream?: InflateStreamConstructor | undefined;
   CompressionStreamZlib?: DeflateStreamConstructor | undefined;
@@ -44,12 +45,19 @@ export function configure(configuration: Configuration): undefined;
 export function terminateWorkers(): Promise<undefined>;
 export function getMimeType(filename: string): string;
 
+export interface CreateReadableOptions {
+  chunkSize?: number | undefined;
+  diskNumberStart?: number | undefined;
+  offset?: number | undefined;
+  size?: number | undefined;
+}
+
 export type ReadableByteStream = ReadableStream<Uint8Array<ArrayBuffer>>;
 
 export interface ReadableReader {
   get readable(): ReadableByteStream;
+  createReadable?(options?: CreateReadableOptions): ReadableByteStream;
   size?: number | undefined;
-  chunkSize?: number | undefined;
   initialized?: boolean | undefined;
   init?(): unknown;
 }
@@ -59,21 +67,18 @@ export type ReadableReaderLike =
   | ReadableByteStream
   | readonly Reader[];
 
-export interface SeekableReadableByteStream extends ReadableByteStream {
-  diskNumberStart?: number | undefined;
-  offset?: number | undefined;
-  size?: number | undefined;
-}
-
-export interface SeekableReadableReader extends ReadableReader {
-  get readable(): SeekableReadableByteStream;
-  lastDiskNumber?: number | undefined;
-  size: number;
+export interface SeekableReadableReader {
   readUint8Array(
     index: number,
     length: number,
     diskNumber?: number,
   ): Awaitable<Uint8Array<ArrayBuffer>>;
+  createReadable(options?: CreateReadableOptions): ReadableByteStream;
+  size: number;
+  lastDiskNumber?: number | undefined;
+  lastDiskOffset?: number | undefined;
+  initialized?: boolean | undefined;
+  init?(): unknown;
 }
 
 export type WritableByteStream = WritableStream<Uint8Array<ArrayBuffer>>;
@@ -102,17 +107,111 @@ export interface TempStream {
   size?: number | undefined;
   initialized?: boolean | undefined;
   init?: ((this: this) => unknown) | undefined;
+  dispose?: ((this: this) => unknown) | undefined;
 }
+
+interface BuiltinTempStream {
+  readonly readable: ReadableByteStream;
+  readonly writable: WritableByteStream;
+  readonly dispose: () => Promise<undefined>;
+}
+
+declare namespace WindowOrWorker {
+  interface File {
+    stream(): ReadableByteStream;
+  }
+
+  interface FileSystemFileHandle {
+    getFile(): Awaitable<File>;
+    createWritable(): Awaitable<WritableByteStream>;
+  }
+
+  interface FileSystemDirectoryHandle2 {
+    getFileHandle(
+      name: string,
+      options: { create: true },
+    ): Awaitable<FileSystemFileHandle>;
+    removeEntry(name: string): unknown;
+  }
+
+  interface FileSystemDirectoryHandle {
+    getDirectoryHandle(
+      name: string,
+      options: { create: true },
+    ): Awaitable<FileSystemDirectoryHandle2>;
+  }
+}
+
+export interface OPFSTempStreamOptions {
+  thresholdBytes?: number | undefined;
+  directoryName?: string | undefined;
+  getDirectory?:
+    | (() => Awaitable<WindowOrWorker.FileSystemDirectoryHandle>)
+    | undefined;
+}
+
+export function createOPFSTempStream(
+  options?: OPFSTempStreamOptions,
+): () => BuiltinTempStream;
+
+export interface BlobTempStreamOptions {
+  thresholdBytes?: number | undefined;
+}
+
+export function createBlobTempStream(
+  options?: BlobTempStreamOptions,
+): () => BuiltinTempStream;
+
+declare namespace DedicatedWorker {
+  interface FileSystemSyncAccessHandle {
+    read(buffer: Uint8Array<ArrayBuffer>, options: { at: number }): number;
+    write(buffer: Uint8Array<ArrayBuffer>, options: { at: number }): number;
+    flush(): unknown;
+    close(): unknown;
+  }
+
+  interface FileSystemFileHandle {
+    createSyncAccessHandle(): Awaitable<FileSystemSyncAccessHandle>;
+  }
+
+  interface FileSystemDirectoryHandle2 {
+    getFileHandle(
+      name: string,
+      options: { create: true },
+    ): Awaitable<FileSystemFileHandle>;
+    removeEntry(name: string): unknown;
+  }
+
+  interface FileSystemDirectoryHandle {
+    getDirectoryHandle(
+      name: string,
+      options: { create: true },
+    ): Awaitable<FileSystemDirectoryHandle2>;
+  }
+}
+
+export interface SyncAccessHandleTempStreamOptions {
+  thresholdBytes?: number | undefined;
+  directoryName?: string | undefined;
+  getDirectory?:
+    | (() => Awaitable<DedicatedWorker.FileSystemDirectoryHandle>)
+    | undefined;
+}
+
+export function createSyncAccessHandleTempStream(
+  options?: SyncAccessHandleTempStreamOptions,
+): () => BuiltinTempStream;
 
 declare class Stream {
   size: number;
-  initialized?: boolean | undefined;
+  initialized?: boolean;
   init(): Awaitable<undefined>;
 }
 
-export abstract class Reader extends Stream implements SeekableReadableReader {
-  chunkSize?: number | undefined;
-  get readable(): SeekableReadableByteStream;
+export abstract class Reader extends Stream
+  implements ReadableReader, SeekableReadableReader {
+  get readable(): ReadableByteStream;
+  createReadable(options?: CreateReadableOptions): ReadableByteStream;
   abstract readUint8Array(
     index: number,
     length: number,
@@ -120,7 +219,8 @@ export abstract class Reader extends Stream implements SeekableReadableReader {
   ): Awaitable<Uint8Array<ArrayBuffer>>;
 }
 
-export class TextReader extends Reader implements SeekableReadableReader {
+export class TextReader extends Reader
+  implements ReadableReader, SeekableReadableReader {
   constructor(text: string);
   override init(): undefined;
   override readUint8Array(
@@ -129,7 +229,8 @@ export class TextReader extends Reader implements SeekableReadableReader {
   ): Promise<Uint8Array<ArrayBuffer>>;
 }
 
-export class BlobReader extends Reader implements SeekableReadableReader {
+export class BlobReader extends Reader
+  implements ReadableReader, SeekableReadableReader {
   constructor(blob: Blob);
   override init(): undefined;
   override readUint8Array(
@@ -138,7 +239,8 @@ export class BlobReader extends Reader implements SeekableReadableReader {
   ): Promise<Uint8Array<ArrayBuffer>>;
 }
 
-export class Data64URIReader extends Reader implements SeekableReadableReader {
+export class Data64URIReader extends Reader
+  implements ReadableReader, SeekableReadableReader {
   constructor(dataURI: string);
   override init(): undefined;
   override readUint8Array(
@@ -147,7 +249,8 @@ export class Data64URIReader extends Reader implements SeekableReadableReader {
   ): Uint8Array<ArrayBuffer>;
 }
 
-export class Uint8ArrayReader extends Reader implements SeekableReadableReader {
+export class Uint8ArrayReader extends Reader
+  implements ReadableReader, SeekableReadableReader {
   constructor(array: Uint8Array);
   override init(): undefined;
   override readUint8Array(
@@ -156,11 +259,26 @@ export class Uint8ArrayReader extends Reader implements SeekableReadableReader {
   ): Uint8Array<ArrayBuffer>;
 }
 
-export interface HttpOptions extends HttpRangeOptions {
-  useRangeHeader?: boolean | undefined;
+type RequestInitWithoutMethod = Omit<RequestInit, "method" | "body">;
+
+export interface FetchOptions extends RequestInitWithoutMethod {
+  method: "GET" | "HEAD";
+  headers: Record<string, string>;
 }
 
-export class HttpReader extends Reader implements SeekableReadableReader {
+export interface HttpOptions extends RequestInitWithoutMethod {
+  preventHeadRequest?: boolean | undefined;
+  useRangeHeader?: boolean | undefined;
+  forceRangeRequests?: boolean | undefined;
+  combineSizeEocd?: boolean | undefined;
+  useXHR?: boolean | undefined;
+  fetch?:
+    | ((url: string, options: FetchOptions) => Awaitable<Response>)
+    | undefined;
+}
+
+export class HttpReader extends Reader
+  implements ReadableReader, SeekableReadableReader {
   constructor(url: string, options?: HttpOptions);
   override init(): Promise<undefined>;
   override readUint8Array(
@@ -169,17 +287,9 @@ export class HttpReader extends Reader implements SeekableReadableReader {
   ): Promise<Uint8Array<ArrayBuffer>>;
 }
 
-export interface HttpRangeOptions
-  extends Omit<RequestInit, "headers" | "body" | "method"> {
-  preventHeadRequest?: boolean | undefined;
-  forceRangeRequests?: boolean | undefined;
-  combineSizeEocd?: boolean | undefined;
-  useXHR?: boolean | undefined;
-  headers?: Iterable<[string, string]> | Record<string, string> | undefined;
-}
-
-export class HttpRangeReader extends Reader implements SeekableReadableReader {
-  constructor(url: string, options?: HttpRangeOptions);
+export class HttpRangeReader extends Reader
+  implements ReadableReader, SeekableReadableReader {
+  constructor(url: string, options?: Omit<HttpOptions, "useRangeHeader">);
   override init(): Promise<undefined>;
   override readUint8Array(
     index: number,
@@ -187,8 +297,10 @@ export class HttpRangeReader extends Reader implements SeekableReadableReader {
   ): Promise<Uint8Array<ArrayBuffer>>;
 }
 
-export class SplitDataReader extends Reader implements SeekableReadableReader {
-  lastDiskNumber?: number | undefined;
+export class SplitDataReader extends Reader
+  implements ReadableReader, SeekableReadableReader {
+  lastDiskNumber?: number;
+  lastDiskOffset?: number;
   constructor(readers: readonly Reader[]);
   override init(): Promise<undefined>;
   override readUint8Array(
@@ -382,6 +494,7 @@ export interface Entry {
 
 export interface ReadOptions extends WorkerConfiguration {
   passThrough?: boolean | undefined;
+  checkAmbiguity?: boolean | undefined;
   checkOverlappingEntry?: boolean | undefined;
   checkOverlappingEntryOnly?: boolean | undefined;
   checkPasswordOnly?: boolean | undefined;
@@ -422,6 +535,9 @@ export interface ReadableEntry extends Entry {
 }
 
 export interface GetEntriesOptions {
+  strictness?: "strict" | "balanced" | "tolerant" | undefined;
+  checkAmbiguity?: boolean | undefined;
+  maxAppendedDataSize?: number | undefined;
   filenameEncoding?: string | undefined;
   commentEncoding?: string | undefined;
   decodeText?:
@@ -442,7 +558,7 @@ export class ZipReader {
   readonly prependedData?: Uint8Array<ArrayBuffer>;
   readonly appendedData?: Uint8Array<ArrayBuffer>;
   constructor(
-    reader: ReadableReaderLike,
+    reader: SeekableReadableReader | ReadableReaderLike,
     options?: ReadOptions & GetEntriesOptions,
   );
   getEntriesGenerator(
@@ -561,6 +677,8 @@ export class ZipWriterStream {
 }
 
 export const ERR_HTTP_RANGE: string;
+export const ERR_ITERATOR_COMPLETED_TOO_SOON: string;
+export const ERR_WRITER_NOT_INITIALIZED: string;
 export const ERR_BAD_FORMAT: string;
 export const ERR_EOCDR_NOT_FOUND: string;
 export const ERR_EOCDR_LOCATOR_ZIP64_NOT_FOUND: string;
@@ -573,8 +691,10 @@ export const ERR_UNSUPPORTED_COMPRESSION: string;
 export const ERR_INVALID_SIGNATURE: string;
 export const ERR_INVALID_PASSWORD: string;
 export const ERR_INVALID_UNCOMPRESSED_SIZE: string;
+export const ERR_INVALID_COMPRESSED_DATA: string;
 export const ERR_SPLIT_ZIP_FILE: string;
 export const ERR_OVERLAPPING_ENTRY: string;
+export const ERR_AMBIGUOUS_ARCHIVE: string;
 export const ERR_DUPLICATED_NAME: string;
 export const ERR_INVALID_COMMENT: string;
 export const ERR_INVALID_ENTRY_NAME: string;
@@ -585,6 +705,7 @@ export const ERR_INVALID_EXTRAFIELD_DATA: string;
 export const ERR_INVALID_ENCRYPTION_STRENGTH: string;
 export const ERR_UNSUPPORTED_FORMAT: string;
 export const ERR_UNDEFINED_UNCOMPRESSED_SIZE: string;
+export const ERR_UNDEFINED_READER: string;
 export const ERR_ZIP_NOT_EMPTY: string;
 
 export {};

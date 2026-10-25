@@ -1,8 +1,8 @@
 #!/usr/bin/env -S deno run --allow-import=jsr.io:443 --allow-read --allow-write --allow-net
 
 import { Command, ValidationError } from "./deps/cliffy/command.ts";
-import { AsyncSemaphore } from "./deps/esfx/async_semaphore.ts";
 import { HttpReader, terminateWorkers, ZipReader } from "./deps/zip_js.ts";
+import { Semaphore } from "./semaphore.ts";
 
 import { updateFromDatasette } from "./datasette.ts";
 import { delay } from "./delay.ts";
@@ -193,14 +193,14 @@ if (error) {
 }
 let maxFilesHelp = " (consider raising the limit using the --max-files option)";
 let maxSizeHelp = " (consider raising the limit using the --max-size option)";
-const semaphore = new AsyncSemaphore(concurrency);
+const semaphore = new Semaphore(concurrency);
 try {
   await Promise.all(
     Array.from(toAdd, async ([hash, { id, url }]) => {
       let started = false;
       try {
         await retry(async () => {
-          await semaphore.wait();
+          await semaphore.acquire();
           try {
             signal.throwIfAborted();
             if (!started) {
